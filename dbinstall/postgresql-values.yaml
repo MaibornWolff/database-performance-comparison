@@ -1,0 +1,10 @@
+persistence:
+  enabled: true
+  storageClass: local-path
+psp:
+  create: true
+rbac:
+  create: true
+serviceAccount:
+  enabled: true
+postgresqlPassword: postgres

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dbtest-worker
+  namespace: {{ .Values.namespace }}
+spec:
+  parallelism: {{ .Values.workers }}
+  completions: {{ .Values.workers }}
+  template:
+    spec:
+      containers:
+      - name: worker
+        image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: Always
+        env:
+        - name: TEST_MODULE
+          value: "{{ .Values.target_module }}"
+        - name: RUN_CONFIG
+          value: "{{ .Values.run_config }}"
+        - name: INSTANCE_TYPE
+          value: "worker"
+        - name: COLLECTOR_URL
+          value: "http://dbtest-collector:5000"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+      restartPolicy: Never
+  backoffLimit: 0

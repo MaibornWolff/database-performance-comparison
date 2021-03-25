@@ -1,0 +1,17 @@
+targets:
+  arangodb:
+    module: arangodb
+    endpoint: http://arango.default:8529
+    database: _system
+    username: root
+    password: root
+  yugabyte:
+    module: postgres
+    connection_string: "host=yb-tservers.default port=5433 dbname=postgres user=yugabyte"
+  cockroachdb:
+    module: postgres
+    connection_string: "host=cockroachdb-public.default.svc.cluster.local port=26257 dbname=postgres"
+  postgresql:
+    module: postgres
+    connection_string: "host=postgres-postgresql.default port=5432 dbname=postgres user=postgres password=postgres"
+namespace: default

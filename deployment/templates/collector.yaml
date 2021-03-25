@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbtest-collector
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dbtest-collector
+  template:
+    metadata:
+      labels:
+        app: dbtest-collector
+    spec:
+      containers:
+      - name: collector
+        image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: Always
+        env:
+        - name: INSTANCE_TYPE
+          value: "collector"
+        - name: TEST_MODULE
+          value: "{{ .Values.target_module }}"
+        - name: RUN_CONFIG
+          value: "{{ .Values.run_config }}"
+      terminationGracePeriodSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dbtest-collector
+  namespace: {{ .Values.namespace }}
+spec:
+  ports:
+    - port: 5000
+      targetPort: 5000
+      protocol: TCP
+      name: http
+  selector:
+    app: dbtest-collector

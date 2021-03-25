@@ -1,0 +1,9 @@
+---
+namespace: default
+target_module: postgres
+run_config: null
+workers: 1
+
+image:
+  name: maibornwolff/database-comparison
+  tag: latest

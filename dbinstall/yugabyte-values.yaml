@@ -1,0 +1,34 @@
+storage:
+  ephemeral: false
+  master:
+    count: 1
+    size: 10Gi
+    storageClass: local-path
+  tserver:
+    count: 1
+    size: 10Gi
+    storageClass: local-path
+
+resource:
+  master:
+    requests:
+      cpu: 1
+      memory: 5Gi
+    limits:
+      cpu: 2
+      memory: 10G
+  tserver:
+    requests:
+      cpu: 1
+      memory: 5Gi
+    limits:
+      cpu: 2
+      memory: 10G
+
+replicas:
+  master: 3
+  tserver: 3
+
+partition:
+  master: 3
+  tserver: 3

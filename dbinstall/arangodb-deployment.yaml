@@ -1,0 +1,14 @@
+apiVersion: database.arangodb.com/v1alpha
+kind: ArangoDeployment
+metadata:
+  name: arango
+spec:
+  mode: Single
+  #mode: Cluster
+  #dbservers:
+  #  count: 3
+  tls:
+    caSecretName: None
+  image: arangodb/arangodb:3.6.1
+  auth:
+    jwtSecretName: None

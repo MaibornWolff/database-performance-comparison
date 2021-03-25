@@ -1,0 +1,18 @@
+storage:
+  persistentVolume:
+    size: 5Gi
+statefulset:
+  replicas: 3
+  resources:
+    limits:
+      cpu: "2"
+      memory: "16Gi"
+    requests:
+      cpu: "1"
+      memory: "8Gi"
+conf:
+  #single-node: true
+  cache: "2Gi"
+  max-sql-memory: "2Gi"
+tls:
+  enabled: false
