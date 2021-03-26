@@ -121,10 +121,10 @@ Best result per database:
 
 Some more observations:
 
-* The design of the primary key can have a huge impact on performance. For YugabyteDB speed drops to about one third when using a `SERIAL` primary key regardless of single or multi node linstances. This indicates that the implementation of that algorithm suffers from the multi node synchronization and has no shortcut for single node clusters. CockroachDB shows a speed drop of about 10% so it is measureable but not as extrem. PostgreSQL has no measureable change. The same is true for ArangoDB
+* The design of the primary key can have a huge impact on performance. For YugabyteDB speed drops to about one third when using a `SERIAL` primary key regardless of single or multi node linstances. This indicates that the implementation of that algorithm suffers from the multi node synchronization and has no shortcut for single node clusters. CockroachDB shows a speed drop of about 10% so it is measureable but not as extreme. PostgreSQL has no measureable change. The same is true for ArangoDB
 * As expected when compared to single node instances multi node instances get a performance drop due to the needed synchronization and replication effort. This is most notable with YugabyteDB where the single worker insert speed drops from 1500 to 900. With an increasing number of workers this effect diminishes until it is no longer noticeable.
 * Using more nodes than replicas will increase speed. This is most noticeable with YugabyteDB where the speed will increase from 3000 inserts/s with a 3 node cluster to 4200 inserts/s with a 5 node cluster and 3 replicas. For CockroachDB the effect is there but way less pronounced with 4000 vs 4500 inserts/s. ArangoDB shows no noticable increase for the same scenario.
-* ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been written to disk. Enforcing that via `waitForSync` will massively slow down performance from 5000 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s.
+* ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 5000 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s.
 
 Raw results and graphs tbd at a later date.
 
@@ -135,4 +135,4 @@ This tool is split into two parts:
 * A simulator that runs in kubernetes and does the work. It is split into a collector pod that initializes the database tables and collects the results and worker pods that run the workload (currently inserts).
 * A cli that repeatedly launches the simulator with differnet arguments, collects the results and provides them to the user.
 
-If you want to change the simulator you need to build your own docker image. The dockerfile for that is int eh `simulator` folder. Afterwards change the `image.name` and `image.tag` parameters in the `deployment/values.yaml` file.
+If you want to change the simulator you need to build your own docker image. The dockerfile for that is in the `simulator` folder. Afterwards change the `image.name` and `image.tag` parameters in the `deployment/values.yaml` file.
