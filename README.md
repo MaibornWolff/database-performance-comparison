@@ -81,8 +81,8 @@ YugabyteDB is one of the representitives for distributed and scalable SQL databa
 For the test we installed yugabyteDB using:
 
 ```bash
-helm repo add cockroachdb https://charts.cockroachdb.com/
-helm install cockroachdb cockroachdb/cockroachdb -f dbinstall/cockroachdb-values.yaml
+helm repo add yugabytedb https://charts.yugabyte.com
+helm install yugabyte yugabytedb/yugabyte -f dbinstall/yugabyte-values.yaml
 ```
 
 The values file installs a 3 node cluster. To install a single node cluster change the `replicas` options. If you want more than 3 nodes you should set the `replicas.master` value to 3 and the `replicas.tserver` value to the node count you desire.
