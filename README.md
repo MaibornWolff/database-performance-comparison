@@ -1,8 +1,10 @@
-# database-performance-comparison
+# Database performance comparison for IoT use cases
 
-MaibornWolff does a lot of IoT projects. One important part of IoT projects is storage and analysis of device data/events. To help us in finding the correct database for each usecase we have started to compare different databases in regards to how well they handle the IoT workloads. This repository contains the tooling for this comparison.
+MaibornWolff does a lot of IoT projects. One important part of IoT projects is storage and analysis of device data/events. To get some reliable numbers to help us choose well suited databases for specific use cases, we have started to compare some horizontally scalable databases in regards to how well they handle typical IoT workloads and tasks. We are doing this test for us but maybe it's of interest to other people as well. This repository contains the results and the tooling for this comparison.
 
-Currently we only have one usecase: Rapid and concurrent inserts to simulate data ingestion of device events (to keep it simple we simulate temperature events). Other usecases like different queries are planned but not yet implemented.
+Currently we only have one use case: Rapid and concurrent inserts to simulate data ingestion of device events (to keep it simple we simulate temperature events). Other use cases like different queries are planned but not yet implemented. The initial idea was to see how the scalable SQL databases YugabyteDB and CockroachDB perform in those use cases but since we were already at it we threw in ArangoDB in the mix and might add more databases like TimescaleDB later.
+
+For now we only did the insert tests with initially empty databases. Since you are usually not working with an empty database and database performance depends on the amount of data stored in it, we will extend the tests to see how the databases perform with an increasing amount of data stored in it when we do the inserts.
 
 **This is a work-in-progress and is neither intended nor designed as a complete or standardized benchmark like TPC.**
 
