@@ -103,9 +103,10 @@ kubectl apply -f dbinstall/arangodb-deployment.yaml
 
 The values file installs a single node cluster. To install a 3 node cluster change `spec.mode` to `Cluster` and comment in the `spec.dbservers` options.
 
-As a speciality for ArangoDB you can/must set two extra options when running the test:
+As a speciality for ArangoDB you can/must set extra options when running the test:
 
 * `replication_factor`: By default this is set to `1`, to produce behaviour similar to the other databases in a cluster setting set this to `3`
+* `shard_count`: By setting this option the collection will be created with the specified number of shards
 * `sync`: By default the workers will not use the `waitForSync` option. Set this to `true` to force durable writes
 
 ## Results

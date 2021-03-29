@@ -20,8 +20,9 @@ def init():
     for table_name in ["events0", "events1", "events2", "events3", "events"]:
         db.delete_collection(table_name, ignore_missing=True)
 
+    shard_count = int(config.get("shard_count")) if "shard_count" in config else None
     for table_name in table_names:
-        db.create_collection(table_name, replication_factor=int(config.get("replication_factor", 1)))
+        db.create_collection(table_name, shard_count=shard_count, replication_factor=int(config.get("replication_factor", 1)))
     print("Created table events")
 
 
@@ -39,7 +40,7 @@ def insert_events(events):
         if config["use_multiple_tables"]:
             collection = collections[idx%4]
         data = event.to_dict()
-        if not config["generate_primary_key"]:
+        if config["primary_key"] == "client":
             data["_key"] = f"{event.device_id}{event.timestamp}{event.sequence_number}"
         collection.insert(data, sync=sync)
 
