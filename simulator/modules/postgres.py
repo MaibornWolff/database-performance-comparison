@@ -5,7 +5,8 @@ from .config import config
 def _db():
     connection_string = config["connection_string"]
     con = psycopg2.connect(connection_string)
-    con.set_session(autocommit=True)
+    if not config.get("batch_mode", False):
+        con.set_session(autocommit=True)
     return con
 
 
@@ -33,6 +34,7 @@ def init():
             temperature real
             )
         """)
+    db.commit()
     print("Created table events")
     cur.close()
 
@@ -40,13 +42,17 @@ def init():
 def insert_events(events):
     print("Connecting to database", flush=True)
     db = _db()
+    cur = db.cursor()
+    batch_mode = config.get("batch_mode", False)
+    batch_size = config.get("batch_size", 100)
     print("Inserting events", flush=True)
+    count = 0
     for idx, event in enumerate(events):
         if config["use_multiple_tables"]:
             table_name = f"events{idx%4}"
         else:
             table_name = "events"
-        cur = db.cursor()
+        
         if config["primary_key"] == "db":
             cur.execute(f"INSERT INTO {table_name} (timestamp, device_id, sequence_number, temperature) VALUES (%s, %s, %s, %s)",
                     (event.timestamp, event.device_id, event.sequence_number, event.temperature))
@@ -54,5 +60,11 @@ def insert_events(events):
             event_id = f"{event.device_id}{event.timestamp}{event.sequence_number}"
             cur.execute(f"INSERT INTO {table_name} (id, timestamp, device_id, sequence_number, temperature) VALUES (%s, %s, %s, %s, %s)",
                     (event_id, event.timestamp, event.device_id, event.sequence_number, event.temperature))
-        cur.close()
+        count += 1
+        if batch_mode and count >= batch_size:
+            db.commit()
+            count = 0
+    if batch_mode:
+        db.commit()
+    cur.close()
     print("Finished inserting", flush=True)

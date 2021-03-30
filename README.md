@@ -42,6 +42,7 @@ To run the test use `python run.py`. You can use the following options:
 * `--tables`: To simulate how the databases behave if inserts are done to several tables this option can be changed from `single` to `multiple` to have the test write into four instead of just one table
 * `--num-inserts`: The number of inserts each worker should do, by default 10000 to get a quick result. Increase this to see how the databases behave under constant load. Also increase the timout option accordingly
 * `--timeout`: How long should the script wait for the insert test to complete in seconds. Default 600. Increase accordingly if you increase the number of inserts
+* `--batch`: Switch to batch mode (for postgres this means manual commits, for arangodb using the [batch api](https://docs.python-arango.com/en/main/batch.html)). Specify the number of inserts per transaction/batch
 * `--extra-option`: Extra options to supply to the test scripts, can be used multiple times. Currently only used for ArangoDB (see below)
 
 If the test takes too long and the timeout is reached or the script runs into any problems it will crash. To clean up you must then manually uninstall the simulator by running `helm uninstall dbtest`.
@@ -113,21 +114,28 @@ As a speciality for ArangoDB you can/must set extra options when running the tes
 
 Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 3 m5.2xlarge EC2 instances on AWS. In the text below all mentions of node refer to database nodes (pods) and not VMs or kubernetes nodes.
 
-Best result per database:
+### Best result per database
 
 * PostgreSQL: 12500 inserts/s with 16 workers
 * CockroachDB: 4500 inserts/s with 16 workers on a 5 node cluster with a replication factor of 3 and a varchar primary key
 * YugabyteDB: 4200 inserts/s with 16 workers on a 5 node cluster with a replication factor of 3 and a varchar primary key
 * ArangoDB: 7000 inserts/s with 16 workers on a single node instance without sync. The best result for multi node cluster is 5000 inserts/s on a 3 node cluster with replication factor 3 and without sync
 
-Some more observations:
+### Some observations
 
 * The design of the primary key can have a huge impact on performance. For YugabyteDB speed drops to about one third when using a `SERIAL` primary key regardless of single or multi node linstances. This indicates that the implementation of that algorithm suffers from the multi node synchronization and has no shortcut for single node clusters. CockroachDB shows a speed drop of about 10% so it is measureable but not as extreme. PostgreSQL has no measureable change. The same is true for ArangoDB
 * As expected when compared to single node instances multi node instances get a performance drop due to the needed synchronization and replication effort. This is most notable with YugabyteDB where the single worker insert speed drops from 1500 to 900. With an increasing number of workers this effect diminishes until it is no longer noticeable.
 * Using more nodes than replicas will increase speed. This is most noticeable with YugabyteDB where the speed will increase from 3000 inserts/s with a 3 node cluster to 4200 inserts/s with a 5 node cluster and 3 replicas. For CockroachDB the effect is there but way less pronounced with 4000 vs 4500 inserts/s. ArangoDB shows no noticable increase for the same scenario.
-* ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 5000 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s.
+* ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 5000 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s. As long as ArangoDB is run in cluster mode enforcing sync should not be needed as replication ensures no data is lost if a single node goes down.
 
 Raw results and graphs tbd at a later date.
+
+### Batch inserts
+
+For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
+
+The evaluation is still in progress and preliminary tests have only been done with PostgreSQL and ArangoDB. For PostgreSQL using batch mode can increase the performance dramatically. With 16 workers and a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size does not improve performance.
+With ArangoDB we achieved about 8700 inserts/s with a replication factor of 3 on a 3 node cluster, 16 workers and a batch size of 100. Again increasing the batch size further does not seem to increase performance.
 
 ## Developing
 

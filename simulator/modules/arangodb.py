@@ -30,18 +30,40 @@ def insert_events(events):
     print("Connecting to database", flush=True)
     sync = config.get("sync", "False").lower() in ["true", "yes", "1"]
     db = _db()
-    if config["use_multiple_tables"]:
-        collections = [db.collection(f"events{i}") for i in range(4)]
-    else:
-        collection = db.collection("events")
+    batch_mode = config.get("batch_mode", False)
+    batch_size = config.get("batch_size", 100)
+    if batch_mode:
+        batch_db = db.begin_batch_execution(return_result=False)
+    collections = _get_collections(batch_db if batch_mode else db, config["use_multiple_tables"])
 
     print("Inserting events", flush=True)
+    count = 0
     for idx, event in enumerate(events):
-        if config["use_multiple_tables"]:
-            collection = collections[idx%4]
+        collection = _select_collection(collections, config["use_multiple_tables"], idx)
         data = event.to_dict()
         if config["primary_key"] == "client":
             data["_key"] = f"{event.device_id}{event.timestamp}{event.sequence_number}"
         collection.insert(data, sync=sync)
-
+        count += 1
+        if batch_mode and count >= batch_size:
+            batch_db.commit()
+            count = 0
+            batch_db = db.begin_batch_execution(return_result=False)
+            collections = _get_collections(batch_db, config["use_multiple_tables"])
+    if batch_mode:
+        batch_db.commit()
     print("Finished inserting", flush=True)
+
+
+def _get_collections(db, use_multiple_tables):
+    if use_multiple_tables:
+        return [db.collection(f"events{i}") for i in range(4)]
+    else:
+        return [db.collection("events")]
+
+
+def _select_collection(collections, use_multiple_tables, idx):
+    if use_multiple_tables:
+        return collections[idx%4]
+    else:
+        return collections[0]
