@@ -134,8 +134,8 @@ Raw results and graphs tbd at a later date.
 
 For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
 
-The evaluation is still in progress and preliminary tests have only been done with PostgreSQL and ArangoDB. For PostgreSQL using batch mode can increase the performance dramatically. With 16 workers and a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size does not improve performance.
-With ArangoDB we achieved about 8700 inserts/s with a replication factor of 3 on a 3 node cluster, 16 workers and a batch size of 100. Again increasing the batch size further does not seem to increase performance.
+The evaluation is still in progress and preliminary tests have only been done with PostgreSQL and ArangoDB. For PostgreSQL using batch mode can increase the performance dramatically. With 16 workers and a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size further does not improve performance.
+With ArangoDB (using the document batch API `/_api/document`) we achieved about 100000 inserts/s with a replication factor of 3 on a 3 node cluster, 16 workers and a batch size of 1000. Increasing the batch size further to 2000 does not seem to increase performance and even slow it down somewhat.
 
 ## Developing
 
