@@ -27,6 +27,33 @@ def wait_for_collector_init():
         time.sleep(2)
 
 
+def wait_for_prefill_complete():
+    print("Waiting for prefill completion", flush=True)
+    url = os.environ.get("COLLECTOR_URL", "http://localhost:5000")
+    while True:
+        try:
+            response = requests.get(f"{url}/prefill", timeout=2)
+            if response.ok:
+                print("Prefill complete. Starting work", flush=True)
+                return
+            else:
+                pass
+        except:
+            pass
+        time.sleep(4)
+
+
+def do_prefill(mod):
+    print("Doing prefill", flush=True)
+    url = os.environ.get("COLLECTOR_URL", "http://localhost:5000")
+    num_events = int(config["prefill"]/int(os.environ["WORKER_COUNT"]))
+    prefill_events = generate_events(worker_id(), 0, num_events)
+    mod.prefill_events(prefill_events)
+    requests.post(f"{url}/prefill", json=dict(worker=worker_id()))
+    wait_for_prefill_complete()
+    return num_events + 1
+
+
 def report_results(ops, duration):
     url = os.environ.get("COLLECTOR_URL", "http://localhost:5000")
     data = dict(worker=worker_id(), operations=ops, duration=duration)
@@ -36,9 +63,13 @@ def report_results(ops, duration):
 def run():
     print("Starting run", flush=True)
     mod = select_module()
-    num_events = int(config["num_inserts"])
-    events = generate_events(worker_id(), 0, num_events)
     wait_for_collector_init()
+    if config["prefill"]:
+        sequence_number = do_prefill(mod)
+    else:
+        sequence_number = 1
+    num_events = int(config["num_inserts"])
+    events = generate_events(worker_id(), 0, num_events, sequence_number=sequence_number)
     time.sleep(2)
     start = time.time()
     mod.insert_events(events)

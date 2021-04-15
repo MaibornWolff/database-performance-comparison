@@ -7,6 +7,9 @@ spec:
   parallelism: {{ .Values.workers }}
   completions: {{ .Values.workers }}
   template:
+    metadata:
+      labels:
+        app: dbtest-worker
     spec:
       containers:
       - name: worker
@@ -19,6 +22,8 @@ spec:
           value: "{{ .Values.run_config }}"
         - name: INSTANCE_TYPE
           value: "worker"
+        - name: WORKER_COUNT
+          value: "{{ .Values.workers }}"
         - name: COLLECTOR_URL
           value: "http://dbtest-collector:5000"
         - name: POD_NAME

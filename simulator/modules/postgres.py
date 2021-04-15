@@ -19,15 +19,16 @@ def init():
     else:
         table_names = ["events"]
 
-    for table_name in ["events0", "events1", "events2", "events3", "events"]:
-        cur.execute(f"""DROP TABLE IF EXISTS {table_name}""")
-
+    if config["clean_database"]:
+        for table_name in ["events0", "events1", "events2", "events3", "events"]:
+            cur.execute(f"""DROP TABLE IF EXISTS {table_name}""")
+        db.commit()
     pk_column = "serial" if config["primary_key"] == "db" else "varchar"
 
     for table_name in table_names:
         cur.execute(
         f"""
-        CREATE TABLE {table_name} (id {pk_column} PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS {table_name} (id {pk_column} PRIMARY KEY,
             timestamp bigint,
             device_id varchar,
             sequence_number bigint,
@@ -39,12 +40,21 @@ def init():
     cur.close()
 
 
+def prefill_events(events):
+    _insert_events(events, True, 1000)
+
+
 def insert_events(events):
+    batch_mode = config.get("batch_mode", False)
+    batch_size = config.get("batch_size", 100)
+    _insert_events(events, batch_mode, batch_size)
+
+
+def _insert_events(events, batch_mode, batch_size):
     print("Connecting to database", flush=True)
     db = _db()
     cur = db.cursor()
-    batch_mode = config.get("batch_mode", False)
-    batch_size = config.get("batch_size", 100)
+
     print("Inserting events", flush=True)
     count = 0
     for idx, event in enumerate(events):

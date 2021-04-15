@@ -13,10 +13,9 @@ class Event:
     temperature: float
 
 
-def generate_events(device_id, start_timestamp, num_events):
+def generate_events(device_id, start_timestamp, num_events, sequence_number=1):
     if start_timestamp == 0:
         start_timestamp = int(datetime.now().timestamp()*1000)
-    sequence_number = 1
     for i in range(num_events):
         event = Event(start_timestamp, device_id, sequence_number, random.uniform(-20, 35))
         yield event

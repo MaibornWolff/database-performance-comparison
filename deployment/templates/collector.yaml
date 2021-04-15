@@ -20,6 +20,8 @@ spec:
         env:
         - name: INSTANCE_TYPE
           value: "collector"
+        - name: WORKER_COUNT
+          value: "{{ .Values.workers }}"
         - name: TEST_MODULE
           value: "{{ .Values.target_module }}"
         - name: RUN_CONFIG

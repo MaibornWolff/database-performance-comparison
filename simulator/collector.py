@@ -1,15 +1,33 @@
-from flask import Flask, request, jsonify
-from modules import select_module
+import os
 import time
+from flask import Flask, request, jsonify, make_response
+from modules import select_module
 
 
 app = Flask(__name__)
 results = dict()
+prefill = list()
+WORKER_COUNT = int(os.environ["WORKER_COUNT"])
 
 
 @app.route("/")
 def index():
     return "Test Collector"
+
+
+@app.route("/prefill", methods=["POST"])
+def report_prefill():
+    data = request.get_json()
+    prefill.append(data["worker"])
+    return "OK"
+
+
+@app.route("/prefill", methods=["GET"])
+def prefill_status():
+    if len(prefill) >= WORKER_COUNT:
+        return make_response("OK", 200)
+    else:
+        return make_response("waiting on workers", 503)
 
 
 @app.route("/result", methods=["POST"])
@@ -34,5 +52,6 @@ def collect_results():
 
 def run():
     select_module().init()
-    time.sleep(2)
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # It looks like in some cases for yugabytedb the created table is not instantly available for all workers so wait a few seconds
+    time.sleep(10) 
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=False)

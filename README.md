@@ -41,11 +41,20 @@ To run the test use `python run.py`. You can use the following options:
 * `--primary-key`: Depending on the database using auto-generated primary keys (e.g. using the `SERIAL` type) can slow down the insert rate. Setting this to `db` means the database generates the primary key, setting it to `client` means the workers supply a `varchar` primary key that is calculated based on the message content
 * `--tables`: To simulate how the databases behave if inserts are done to several tables this option can be changed from `single` to `multiple` to have the test write into four instead of just one table
 * `--num-inserts`: The number of inserts each worker should do, by default 10000 to get a quick result. Increase this to see how the databases behave under constant load. Also increase the timout option accordingly
-* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default 600. Increase accordingly if you increase the number of inserts
+* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default 600. Increase accordingly if you increase the number of inserts or disable by stting to `0`
 * `--batch`: Switch to batch mode (for postgres this means manual commits, for arangodb using the [batch api](https://docs.python-arango.com/en/main/batch.html)). Specify the number of inserts per transaction/batch
 * `--extra-option`: Extra options to supply to the test scripts, can be used multiple times. Currently only used for ArangoDB (see below)
+* `--clean` / `--no-clean`: By default the simulator will clean and recreate tables to always have the same basis for the runs. Can be disabled
+* `--prefill`: Setting this to a positive number will insert that number of events into the database before starting the run
 
 If the test takes too long and the timeout is reached or the script runs into any problems it will crash. To clean up you must then manually uninstall the simulator by running `helm uninstall dbtest`.
+
+### Prefill
+
+By default the simulator will clean and recreate tables to always have the same basis for the runs. But in reality it is interesting to see how databases behave if they already have existing data. This can be accomplished in two ways:
+
+* Manually prepare data and then tell the simulator to not clean up the existing data via `--no-clean`. You can also use this way to gradually fill up the database by not cleaning between runs.
+* Use the `--prefill` option to have the simulator insert some data before doing the timed insert test. Independent of the chosen options the prefill will always happen in batch mode to be as fast as possible.
 
 ## Database specifics
 

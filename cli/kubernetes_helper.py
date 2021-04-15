@@ -15,6 +15,22 @@ class Kubernetes:
             if labels and labels.get(label_key) == label_value:
                 return pod.metadata.name
 
+    def get_pods(self, namespace, label_key, label_value):
+        for pod in self.api_instance.list_namespaced_pod(namespace).items:
+            labels = pod.metadata.labels
+            if labels and labels.get(label_key) == label_value:
+                yield pod
+
+    def check_if_pods_finished(self, namespace, label_key, label_value):
+        pods = self.get_pods(namespace, label_key, label_value)
+        all_finished = True
+        for pod in pods:
+            if pod.status.phase == "Failed":
+                raise Exception("At least one pod of the job failed")
+            if pod.status.phase != "Succeeded":
+                all_finished = False
+        return all_finished
+
     def patch_socket(self):
         """Taken from https://github.com/kubernetes-client/python/blob/master/examples/pod_portforward.py and adapted
         """
@@ -64,7 +80,11 @@ class Kubernetes:
                             raise RuntimeError("Unable to find service port name: %s" % port)
                 elif dns_name[1] != 'pod':
                     raise RuntimeError("Unsupported resource type: %s" % dns_name[1])
-            pf = portforward(self.api_instance.connect_get_namespaced_pod_portforward,
+            try:
+                pf = portforward(self.api_instance.connect_get_namespaced_pod_portforward,
+                            name, namespace, ports=str(port))
+            except: # Retry in case of error
+                pf = portforward(self.api_instance.connect_get_namespaced_pod_portforward,
                             name, namespace, ports=str(port))
             return pf.socket(port)
         socket.create_connection = kubernetes_create_connection

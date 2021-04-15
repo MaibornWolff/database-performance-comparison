@@ -17,21 +17,31 @@ def init():
     else:
         table_names = ["events"]
 
-    for table_name in ["events0", "events1", "events2", "events3", "events"]:
-        db.delete_collection(table_name, ignore_missing=True)
+    if config["clean_database"]:
+        for table_name in ["events0", "events1", "events2", "events3", "events"]:
+            db.delete_collection(table_name, ignore_missing=True)
 
     shard_count = int(config.get("shard_count")) if "shard_count" in config else None
     for table_name in table_names:
-        db.create_collection(table_name, shard_count=shard_count, replication_factor=int(config.get("replication_factor", 1)))
+        if config["clean_database"] or not db.has_collection(table_name):
+            db.create_collection(table_name, shard_count=shard_count, replication_factor=int(config.get("replication_factor", 1)))
     print("Created table events")
 
 
+def prefill_events(events):
+    _insert_events(events, True, 1000)
+
+
 def insert_events(events):
+    batch_mode = config.get("batch_mode", False)
+    batch_size = config.get("batch_size", 100)
+    _insert_events(events, batch_mode, batch_size)
+
+
+def _insert_events(events, batch_mode, batch_size):
     print("Connecting to database", flush=True)
     sync = config.get("sync", "False").lower() in ["true", "yes", "1"]
     db = _db()
-    batch_mode = config.get("batch_mode", False)
-    batch_size = config.get("batch_size", 100)
     use_multiple_tables = config["use_multiple_tables"]
     if use_multiple_tables:
         collections = [db.collection(f"events{i}") for i in range(4)]
