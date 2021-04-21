@@ -8,6 +8,68 @@ For now we only did the insert tests with initially empty databases. Since you a
 
 **This is a work-in-progress and is neither intended nor designed as a complete or standardized benchmark like TPC.**
 
+This readme contains three sections:
+1. The test results
+2. How can the tests be replicated / how to use the test tooling
+3. Short note on how you can make changes to the tests
+
+## Results
+
+Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 3 m5.2xlarge EC2 instances on AWS. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes. 
+
+We ran the first set of tests with an initially empty database. The second set of tests look at how the insert rates change with an increasing fill level with up to 500 million database entries. We ran the tests with the increasing fill levels only with three node clusters (aside from PostgreSQL).
+
+### Some observations
+
+* The design of the primary key can have a huge impact on performance. For YugabyteDB speed drops to about one third when using a `SERIAL` primary key regardless of single or multi node linstances. This indicates that the implementation of that algorithm suffers from the multi node synchronization and has no shortcut for single node clusters. CockroachDB shows a speed drop of about 10% so it is measureable but not as extreme. PostgreSQL has no measureable change. The same is true for ArangoDB
+* As expected when compared to single node instances multi node instances get a performance drop due to the needed synchronization and replication effort. This is most notable with YugabyteDB where the single worker insert speed drops from 1500 to 900. With an increasing number of workers this effect diminishes until it is no longer noticeable.
+* Using more nodes than replicas will increase speed. This is most noticeable with YugabyteDB where the speed will increase from 3000 inserts/s with a 3 node cluster to 4200 inserts/s with a 5 node cluster and 3 replicas. For CockroachDB the effect is there but way less pronounced with 4000 vs 4500 inserts/s. ArangoDB shows no noticable increase for the same scenario.
+* ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 4500 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s. As long as ArangoDB is run in cluster mode enforcing sync should not be needed as replication ensures no data is lost if a single node goes down.
+
+### Batch inserts
+
+For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
+For ArangoDB batch mode is implemented using the document batch API (`/_api/document`), the older generic batch API (`/_api/batch`) will be deprecated and produces worse performance so we did not use it. For PostgreSQL we implemented batch mode by doing a manual commit every x inserts. Another way to implement batch inserts is to use values lists (one insert statement with a list of values tuples). This mode can be activated by passing `--extra-option use_values_lists=true`.
+
+For PostgreSQL using batch mode can increase the performance dramatically. With 16 workers and a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size further does not improve performance. With ArangoDB we achieved about 100000 inserts/s with a replication factor of 3 on a 3 node cluster, 16 workers and a batch size of 1000. Increasing the batch size further to 2000 does not seem to increase performance and even slow it down somewhat. Both CockroachDB and YugabyteDB actually get slower when using batch mode on single instance clusters. Using a 3 or 5 node cluster with CockroachDB will see a better performance in batch mode than without but way lower than PostgreSQL or ArangoDB, also increasing the batch size to 1000 seems to slow down the inserts.
+
+Using values lists on PostgreSQL-compatible databases sees better performance than the batch mode using transactions. For PostgreSQL performance more than quadruples, YugabyteDB sees a tripling and CockroachDB close to an order of magnitude increase.
+
+### Raw results starting with an empty database 
+
+All values as inserts per second. Average value of 3 runs. All runs were done with 1 million inserts per worker starting with an empty database.
+
+#### Single-node database
+
+|                                             | PostgreSQL | CockroachDB | YugabyteDB | ArangoDB |
+|---------------------------------------------|------------|-------------|------------|----------|
+| no batch, 16 workers, client-generated PK   |  12500     |  3850       | 2600       |   7000   |
+| no batch, 16 workers, db-generated PK       |  12500     |  3900       |  850       |   7000   |
+| batch 10, 16 workers, fastest PK mode       |  36900     |  3100       | 1600       |  51000   |
+| batch 100, 16 workers, fastest PK mode      |  44000     |  3730       | 2170       | 135000   |
+| batch 1000, 16 workers, fastest PK mode     |  44000     |  3830       | 2250       | 153000   |
+| values-lists 100 rows, 16 workers           | 190000     | 31000       | 6550       |          |
+| values-lists 1000 rows, 16 workers          | 175000     | 33000       | 7100       |          |
+
+#### Multi-node database
+
+All results with 16 workers, client-generated primary key for YugabyteDB and db-generated for the others.
+
+|                     | CockroachDB | YugabyteDB | ArangoDB |
+|---------------------|-------------|------------|----------|
+| 3 nodes, no batch   | 4200        | 2950       |   4500   |
+| 5 nodes, no batch   | 4500        | 4270       |   4500   |
+| 3 nodes, batch 100  | 5400        | 2180       |  83100   |
+| 3 nodes, batch 1000 | 4600        | 2350       | 100000   |
+| 5 nodes, batch 100  | 5860        | 2600       |  74000   |
+| 5 nodes, batch 1000 | 5210        | 3650       |  95000   |
+
+### Fill level insert performance
+
+As described in the run options, this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account, performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes. Fastest mode was used (values-lists). We only tested with up to 500 million entries which is not much for an IoT project. If you are considering using one of these database you should run the tests with a realistic amount of data for your project.
+
+![Fill level performance](img/fill_level_performance.png)
+
 ## Requirements
 
 * A kubernetes cluster (tested with k3s 1.19.3, any other should also work)
@@ -145,61 +207,6 @@ As a speciality for ArangoDB you can/must set extra options when running the tes
 * `replication_factor`: By default this is set to `1`, to produce behaviour similar to the other databases in a cluster setting set this to `3`
 * `shard_count`: By setting this option the collection will be created with the specified number of shards
 * `sync`: By default the workers will not use the `waitForSync` option. Set this to `true` to force durable writes
-
-## Results
-
-Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 3 m5.2xlarge EC2 instances on AWS. In the text below all mentions of node refer to database nodes (pods) and not VMs or kubernetes nodes. The first set of tests we did with an initially empty database. The second set of tests was run with increasing the fill level up to 500 million database entries. We ran the tests with the increasing fill levels only with three node clusters.
-
-### Some observations
-
-* The design of the primary key can have a huge impact on performance. For YugabyteDB speed drops to about one third when using a `SERIAL` primary key regardless of single or multi node linstances. This indicates that the implementation of that algorithm suffers from the multi node synchronization and has no shortcut for single node clusters. CockroachDB shows a speed drop of about 10% so it is measureable but not as extreme. PostgreSQL has no measureable change. The same is true for ArangoDB
-* As expected when compared to single node instances multi node instances get a performance drop due to the needed synchronization and replication effort. This is most notable with YugabyteDB where the single worker insert speed drops from 1500 to 900. With an increasing number of workers this effect diminishes until it is no longer noticeable.
-* Using more nodes than replicas will increase speed. This is most noticeable with YugabyteDB where the speed will increase from 3000 inserts/s with a 3 node cluster to 4200 inserts/s with a 5 node cluster and 3 replicas. For CockroachDB the effect is there but way less pronounced with 4000 vs 4500 inserts/s. ArangoDB shows no noticable increase for the same scenario.
-* ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 4500 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s. As long as ArangoDB is run in cluster mode enforcing sync should not be needed as replication ensures no data is lost if a single node goes down.
-
-### Batch inserts
-
-For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
-For ArangoDB batch mode is implemented using the document batch API (`/_api/document`), the older generic batch API (`/_api/batch`) will be deprecated and produces worse performance so we did not use it. For PostgreSQL we implemented batch mode by doing a manual commit every x inserts. Another way to implement batch inserts is to use values lists (one insert statement with a list of values tuples). This mode can be activated by passing `--extra-option use_values_lists=true`.
-
-For PostgreSQL using batch mode can increase the performance dramatically. With 16 workers and a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size further does not improve performance. With ArangoDB we achieved about 100000 inserts/s with a replication factor of 3 on a 3 node cluster, 16 workers and a batch size of 1000. Increasing the batch size further to 2000 does not seem to increase performance and even slow it down somewhat. Both CockroachDB and YugabyteDB actually get slower when using batch mode on single instance clusters. Using a 3 or 5 node cluster with CockroachDB will see a better performance in batch mode than without but way lower than PostgreSQL or ArangoDB, also increasing the batch size to 1000 seems to slow down the inserts.
-
-Using values lists on PostgreSQL-compatible databases sees better performance than the batch mode using transactions. For PostgreSQL performance more than quadruples, YugabyteDB sees a tripling and CockroachDB close to an order of magnitude increase.
-
-### Raw results starting with an empty database 
-
-All values as inserts per second. Average value of 3 runs. All runs were done with 1 million inserts per worker starting with an empty database.
-
-#### Single-node database
-
-|                                             | PostgreSQL | CockroachDB | YugabyteDB | ArangoDB |
-|---------------------------------------------|------------|-------------|------------|----------|
-| no batch, 16 workers, client-generated PK   |  12500     |  3850       | 2600       |   7000   |
-| no batch, 16 workers, db-generated PK       |  12500     |  3900       |  850       |   7000   |
-| batch 10, 16 workers, fastest PK mode       |  36900     |  3100       | 1600       |  51000   |
-| batch 100, 16 workers, fastest PK mode      |  44000     |  3730       | 2170       | 135000   |
-| batch 1000, 16 workers, fastest PK mode     |  44000     |  3830       | 2250       | 153000   |
-| values-lists 100 rows, 16 workers           | 190000     | 31000       | 6550       |          |
-| values-lists 1000 rows, 16 workers          | 175000     | 33000       | 7100       |          |
-
-#### Multi-node database
-
-All results with 16 workers, client-generated primary key for YugabyteDB and db-generated for the others.
-
-|                     | CockroachDB | YugabyteDB | ArangoDB |
-|---------------------|-------------|------------|----------|
-| 3 nodes, no batch   | 4200        | 2950       |   4500   |
-| 5 nodes, no batch   | 4500        | 4270       |   4500   |
-| 3 nodes, batch 100  | 5400        | 2180       |  83100   |
-| 3 nodes, batch 1000 | 4600        | 2350       | 100000   |
-| 5 nodes, batch 100  | 5860        | 2600       |  74000   |
-| 5 nodes, batch 1000 | 5210        | 3650       |  95000   |
-
-### Fill level insert performance
-
-As described in the run options, this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account, performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes. Fastest mode was used (values-lists). We only tested with up to 500 million entries which is not much for an IoT project. If you are considering using one of these database you should run the tests with a realistic amount of data for your project.
-
-![Fill level performance](img/fill_level_performance.png)
 
 ## Developing
 
