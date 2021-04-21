@@ -148,7 +148,7 @@ As a speciality for ArangoDB you can/must set extra options when running the tes
 
 ## Results
 
-Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 3 m5.2xlarge EC2 instances on AWS. In the text below all mentions of node refer to database nodes (pods) and not VMs or kubernetes nodes.
+Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 3 m5.2xlarge EC2 instances on AWS. In the text below all mentions of node refer to database nodes (pods) and not VMs or kubernetes nodes. The first set of tests we did with an initially empty database. The second set of tests was run with increasing the fill level up to 500 million database entries. We ran the tests with the increasing fill levels only with three node clusters.
 
 ### Some observations
 
@@ -166,15 +166,9 @@ For PostgreSQL using batch mode can increase the performance dramatically. With 
 
 Using values lists on PostgreSQL-compatible databases sees better performance than the batch mode using transactions. For PostgreSQL performance more than quadruples, YugabyteDB sees a tripling and CockroachDB close to an order of magnitude increase.
 
-### Fill level insert performance
+### Raw results starting with an empty database 
 
-As described in the run options this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes. Fastest mode was used (values-lists).
-
-![Fill level performance](img/fill_level_performance.png)
-
-### Raw results
-
-All values as inserts per second. Average value of 3 runs. All runs were done with 1 million inserts per worker.
+All values as inserts per second. Average value of 3 runs. All runs were done with 1 million inserts per worker starting with an empty database.
 
 #### Single-node database
 
@@ -200,6 +194,12 @@ All results with 16 workers, client-generated primary key for YugabyteDB and db-
 | 3 nodes, batch 1000 | 4600        | 2350       | 100000   |
 | 5 nodes, batch 100  | 5860        | 2600       |  74000   |
 | 5 nodes, batch 1000 | 5210        | 3650       |  95000   |
+
+### Fill level insert performance
+
+As described in the run options, this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account, performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes. Fastest mode was used (values-lists). We only tested with up to 500 million entries which is not much for an IoT project. If you are considering using one of these database you should run the tests with a realistic amount of data for your project.
+
+![Fill level performance](img/fill_level_performance.png)
 
 ## Developing
 
