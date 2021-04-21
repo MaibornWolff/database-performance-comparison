@@ -1,3 +1,4 @@
+import time
 import socket
 from kubernetes import client, config
 from kubernetes.stream import portforward
@@ -30,6 +31,14 @@ class Kubernetes:
             if pod.status.phase != "Succeeded":
                 all_finished = False
         return all_finished
+
+    def wait_for_pods_terminated(self, namespace, label_key, label_value):
+        for _ in range(10):
+            pods = list(self.get_pods(namespace, label_key, label_value))
+            if len(pods) == 0:
+                return
+            time.sleep(5)
+        raise Exception("Failed to wait for pods to terminate")
 
     def patch_socket(self):
         """Taken from https://github.com/kubernetes-client/python/blob/master/examples/pod_portforward.py and adapted

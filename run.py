@@ -1,5 +1,6 @@
 import base64
 import json
+import sys
 import click
 import yaml
 from cli.test_run import one_run
@@ -15,23 +16,55 @@ from cli.test_run import one_run
 @click.option("--num-inserts", default=10000, help="Number of inserts per worker, default=10000")
 @click.option("--prefill", default=0, help="Insert this number of events into the table before starting the test run, default=0")
 @click.option("--extra-option", multiple=True, help="Extra options for the database module")
-@click.option("--timeout", default=600, help="Timeout in seconds to wait for one run to complete. Increase this if you use higher number of inserts, or set to 0 to disable timeout. default=600")
+@click.option("--timeout", default=0, help="Timeout in seconds to wait for one run to complete. Increase this if you use higher number of inserts, or set to 0 to disable timeout. default=0")
 @click.option("--batch", default=0, help="Number of events to insert in one batch, default 0 disables batch mode")
 @click.option('--clean/--no-clean', default=True, help="Clean up the database before each run, enabled by default")
-def main(target, config, workers, runs, primary_key, tables, num_inserts, prefill, extra_option, timeout, batch, clean):
-    worker_counts = map(lambda el: int(el), workers.split(","))
+@click.option('--steps', default=0, help="TODO")
+def main(target, config, workers, runs, primary_key, tables, num_inserts, prefill, extra_option, timeout, batch, clean, steps):
+    worker_counts = list(map(lambda el: int(el), workers.split(",")))
     config = _read_config(config)
     target_config = config["targets"][target]
     namespace = config.get("namespace", "default")
+    if steps and len(worker_counts) > 1:
+        print("ERROR: If using the --steps option only one worker count can be used")
+        sys.exit(1)
+    if steps and runs > 1:
+        print("ERROR: If using the --steps option only one run is allowed")
+        sys.exit(1)
+    if steps and prefill:
+        print("ERROR: --steps and --prefill cannot be used at the same time")
+        sys.exit(1)
+
+    if steps:
+        _steps_test(target_config, worker_counts[0], namespace, primary_key, tables, num_inserts, extra_option, timeout, batch, clean, steps)
+    else:
+        _normal_test(target_config, worker_counts, namespace, runs, primary_key, tables, num_inserts, prefill, extra_option, timeout, batch, clean)
+
+
+def _normal_test(target_config, worker_counts, namespace, runs, primary_key, tables, num_inserts, prefill, extra_option, timeout, batch, clean):
     run_config, target_module = _prepare_run_config(target_config, primary_key, tables, num_inserts, prefill, int(batch) if batch else None, clean, extra_option)
 
-    print(f"Worker\tMin\tMax\tAvg")
+    print(f"Workers\tMin\tMax\tAvg")
     for worker_count in worker_counts:
         run_results = [one_run(worker_count, run_config, target_module, timeout, namespace) for _ in range(runs)]
         result_min = round(min(run_results))
         result_max = round(max(run_results))
         result_avg = round(int(sum(run_results)/len(run_results)))
-        print(f"{worker_count:2}\t{result_min:5}\t{result_max:5}\t{result_avg:5}")
+        print(f"{worker_count:2}\t{result_min:6}\t{result_max:6}\t{result_avg:6}")
+
+
+def _steps_test(target_config, workers, namespace, primary_key, tables, num_inserts, extra_option, timeout, batch, clean, steps):
+    run_config, target_module = _prepare_run_config(target_config, primary_key, tables, num_inserts, 0, int(batch) if batch else None, clean, extra_option)
+    run_config_continued, _ = _prepare_run_config(target_config, primary_key, tables, num_inserts, 0, int(batch) if batch else None, False, extra_option)
+    stepsize = workers*num_inserts
+    width = len(f"{stepsize*steps}")
+    print(f"Stepsize: {stepsize}")
+    print(f"Level".rjust(width)+"\tInserts/s")
+    for step in range(steps):
+        fill = f"{step*stepsize}".rjust(width)
+        inserts = int(round(one_run(workers, run_config, target_module, timeout, namespace), -1))
+        run_config = run_config_continued
+        print(f"{fill}\t{inserts:6}")
 
 
 def _prepare_run_config(target_config, primary_key, tables, num_inserts, prefill, batch, clean, extra_options):

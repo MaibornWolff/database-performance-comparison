@@ -37,4 +37,5 @@ def one_run(num_workers, run_config, target_module, timeout, namespace):
     results = json.loads(http_request(f"http://{collector_pod_name}.pod.{namespace}.kubernetes:5000/report"))
     res = subprocess.run(f"helm uninstall -n {namespace} dbtest".split(" "), stdout=subprocess.DEVNULL)
     res.check_returncode()
+    kube.wait_for_pods_terminated(namespace, "app", "dbtest-worker")
     return results["sum"]["ops_per_second"]

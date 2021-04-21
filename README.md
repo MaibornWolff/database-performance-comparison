@@ -41,11 +41,12 @@ To run the test use `python run.py`. You can use the following options:
 * `--primary-key`: Depending on the database using auto-generated primary keys (e.g. using the `SERIAL` type) can slow down the insert rate. Setting this to `db` means the database generates the primary key, setting it to `client` means the workers supply a `varchar` primary key that is calculated based on the message content
 * `--tables`: To simulate how the databases behave if inserts are done to several tables this option can be changed from `single` to `multiple` to have the test write into four instead of just one table
 * `--num-inserts`: The number of inserts each worker should do, by default 10000 to get a quick result. Increase this to see how the databases behave under constant load. Also increase the timout option accordingly
-* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default 600. Increase accordingly if you increase the number of inserts or disable by stting to `0`
+* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default is `0`. Increase accordingly if you increase the number of inserts or disable by stting to `0`
 * `--batch`: Switch to batch mode (for postgres this means manual commits, for arangodb using the [batch api](https://docs.python-arango.com/en/main/batch.html)). Specify the number of inserts per transaction/batch
 * `--extra-option`: Extra options to supply to the test scripts, can be used multiple times. Currently only used for ArangoDB (see below)
 * `--clean` / `--no-clean`: By default the simulator will clean and recreate tables to always have the same basis for the runs. Can be disabled
 * `--prefill`: Setting this to a positive number will insert that number of events into the database before starting the run
+* `--steps`: Test performance with increasing database fill levels. Specifies the number of steps to do
 
 If the test takes too long and the timeout is reached or the script runs into any problems it will crash. To clean up you must then manually uninstall the simulator by running `helm uninstall dbtest`.
 
@@ -55,6 +56,32 @@ By default the simulator will clean and recreate tables to always have the same 
 
 * Manually prepare data and then tell the simulator to not clean up the existing data via `--no-clean`. You can also use this way to gradually fill up the database by not cleaning between runs.
 * Use the `--prefill` option to have the simulator insert some data before doing the timed insert test. Independent of the chosen options the prefill will always happen in batch mode to be as fast as possible.
+
+### Fill level performance
+
+By default the simulator will test performance on an empty table. But it is also interesting to see how insert performance changes when the database already has existing data. To test that usecase you can use the `--steps <n>` option. The simulator will do the insert test `n` times without cleaning the tables between tests thereby testing the insert performance on existing data. The following constraints apply: The worker set can only contain one worker count and the run count must be `1`.
+
+Example run with PostgreSQL:
+
+```bash
+python run.py --target postgresql -w 16 -r 1 --num-inserts 3125000 --batch 1000 --steps 10 --extra-option use_values_lists=true
+Stepsize: 50000000
+    Level Inserts/s
+        0 182620
+ 50000000 181920
+100000000 181150
+150000000 181480
+200000000 181920
+250000000 182480
+300000000 183660
+350000000 181600
+400000000 181200
+450000000 182130
+```
+
+Each run will insert `num-inserts * workers` events (in this example 50 million) and the simulator will print a table with the number of existing events (fill level) and the insert performance for the next step.
+
+Note that the results will have some spread depending on the environment and database. In normal tests this is compensated by doing several runs and averaging the results. For the fill level test this is not possible so treat the results accordingly.
 
 ## Database specifics
 
@@ -138,6 +165,12 @@ For ArangoDB batch mode is implemented using the document batch API (`/_api/docu
 For PostgreSQL using batch mode can increase the performance dramatically. With 16 workers and a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size further does not improve performance. With ArangoDB we achieved about 100000 inserts/s with a replication factor of 3 on a 3 node cluster, 16 workers and a batch size of 1000. Increasing the batch size further to 2000 does not seem to increase performance and even slow it down somewhat. Both CockroachDB and YugabyteDB actually get slower when using batch mode on single instance clusters. Using a 3 or 5 node cluster with CockroachDB will see a better performance in batch mode than without but way lower than PostgreSQL or ArangoDB, also increasing the batch size to 1000 seems to slow down the inserts.
 
 Using values lists on PostgreSQL-compatible databases sees better performance than the batch mode using transactions. For PostgreSQL performance more than quadruples, YugabyteDB sees a tripling and CockroachDB close to an order of magnitude increase.
+
+### Fill level insert performance
+
+As described in the run options this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes. Fastest mode was used (values-lists).
+
+![Fill level performance](img/fill_level_performance.png)
 
 ### Raw results
 
