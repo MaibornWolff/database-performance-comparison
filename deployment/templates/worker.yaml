@@ -31,4 +31,5 @@ spec:
             fieldRef:
               fieldPath: metadata.name
       restartPolicy: Never
+      terminationGracePeriodSeconds: 2
   backoffLimit: 0

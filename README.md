@@ -4,20 +4,25 @@ MaibornWolff does a lot of IoT projects. One important part of IoT projects is s
 
 Currently we only have one use case: Rapid and concurrent inserts to simulate data ingestion of device events (to keep it simple we simulate temperature events). Other use cases like different queries are planned but not yet implemented. The initial idea was to see how the scalable SQL databases YugabyteDB and CockroachDB perform in those use cases but since we were already at it we threw in ArangoDB in the mix and might add more databases like TimescaleDB later.
 
-For now we only did the insert tests with initially empty databases. Since you are usually not working with an empty database and database performance depends on the amount of data stored in it, we will extend the tests to see how the databases perform with an increasing amount of data stored in it when we do the inserts.
-
 **This is a work-in-progress and is neither intended nor designed as a complete or standardized benchmark like TPC.**
 
 This readme contains three sections:
+
 1. The test results
 2. How can the tests be replicated / how to use the test tooling
 3. Short note on how you can make changes to the tests
 
 ## Results
 
-Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 3 m5.2xlarge EC2 instances on AWS. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes. 
+Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB and ArangoDB with (aside from PostgreSQL) 1, 3 and 5 nodes and up to 16 parallel workers that insert data (more concurrent workers might speed up the process even more but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 6 m5.2xlarge (8vCPU, 32gGiB memory) EC2 instances on AWS. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes.
 
 We ran the first set of tests with an initially empty database. The second set of tests look at how the insert rates change with an increasing fill level with up to 500 million database entries. We ran the tests with the increasing fill levels only with three node clusters (aside from PostgreSQL).
+
+### Benchmark procedure
+
+Upon execution the helm chart found in `deployment/` is installed on the cluster. By default we execute 3 runs per configured count of workers, the results noted below are the average value of the 3 runs. A run consists of the workers and one collector instance being spawned in individual pods inside the same k3s cluster. No pod affinities are configured, workers may be running on the same nodes as DB instances.
+Each worker generates and writes the configured amount of events into the database. Event schemata and API usage are found in `/simulator/modules/{database_name}.py` (note: for cockroachdb and yugabytedb we use the postgres module), event generation logic may be reviewed under `/simulator/modules/event_generator.py`.
+After each run the workers reports statistics to the collector instance. The database is wiped inbetween separate runs to have a reproducible baseline.
 
 ### Some observations
 
@@ -35,7 +40,7 @@ For PostgreSQL using batch mode can increase the performance dramatically. With 
 
 Using values lists on PostgreSQL-compatible databases sees better performance than the batch mode using transactions. For PostgreSQL performance more than quadruples, YugabyteDB sees a tripling and CockroachDB close to an order of magnitude increase.
 
-### Raw results starting with an empty database 
+### Raw results starting with an empty database
 
 All values as inserts per second. Average value of 3 runs. All runs were done with 1 million inserts per worker starting with an empty database.
 
@@ -64,9 +69,24 @@ All results with 16 workers, client-generated primary key for YugabyteDB and db-
 | 5 nodes, batch 100  | 5860        | 2600       |  74000   |
 | 5 nodes, batch 1000 | 5210        | 3650       |  95000   |
 
+#### Multi-node database with increased resources
+
+The results above were gathered with all the databases deployed with the default resource settings of their respective helm charts. As this would typically not be the deployment mode for a production installation we also ran the tests with the databases configured with more resources (for Yugabyte based on recommendations in their community slack). The values files in the `dbinstall` folder contain the increased settings commented out. These are the results:
+
+|                     | CockroachDB | YugabyteDB | ArangoDB |
+|---------------------|-------------|------------|----------|
+| 3 nodes, no batch   |  5000       | 7180       |   6300   |
+| 5 nodes, no batch   |  5000       | 8550       |   6300   |
+| 3 nodes, batch 100  | 14700       | 5270       |  95000   |
+| 3 nodes, batch 1000 | 14900       | 5640       | 110000   |
+| 5 nodes, batch 100  | 15530       | 7000       |  80000   |
+| 5 nodes, batch 1000 | 15000       | 8000       | 101000   |
+
+CockroachDB and YugabyteDB benefit the most from more resources and can increase their performance in average by a factor of 2 to 3. ArangoDB also shows an increase but not as pronounced as the others. Not shown here are results for PostgreSQL which stay roughly the same.
+
 ### Fill level insert performance
 
-As described in the run options, this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account, performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes. Fastest mode was used (values-lists). We only tested with up to 500 million entries which is not much for an IoT project. If you are considering using one of these database you should run the tests with a realistic amount of data for your project.
+As described in the run options, this test measures the performance of the databases with increasing table data fill levels. Depending on the database and taking spread into account, performance will dip a bit with higher fill levels but all in all remains quite stable. Tests were done with 16 workers and databases (except postgres) configured with 3 nodes (not configured with increased resource settings). Fastest mode was used (values-lists). We only tested with up to 500 million entries which is not much for an IoT project. If you are considering using one of these database you should run the tests with a realistic amount of data for your project.
 
 ![Fill level performance](img/fill_level_performance.png)
 
@@ -81,7 +101,7 @@ As described in the run options, this test measures the performance of the datab
 
 ## Install database
 
-You need a database to run the test against. To get you up and running quickly you can find below snippets to install databases using helm. Depending on what setup you want to test you need to edit the values files to create a single or multi-node cluster.
+You need a database to run the test against. To get you up and running quickly you can find below snippets to install databases using helm. Depending on what setup you want to test you need to edit the values files in `dbinstall/` to create a single or multi-node cluster. Depending on your cluster size and target workload you should also adapt the resource settings for each cluster.
 
 Note: The provided values are for a k3s cluster. If you use another distribution or a cloud setup (e.g. EKS, AKS, GKE) please adapt them accordingly (at the minimum `storageClass`).
 

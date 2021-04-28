@@ -47,7 +47,8 @@ def do_prefill(mod):
     print("Doing prefill", flush=True)
     url = os.environ.get("COLLECTOR_URL", "http://localhost:5000")
     num_events = int(config["prefill"]/int(os.environ["WORKER_COUNT"]))
-    prefill_events = generate_events(worker_id(), 0, num_events)
+    device_spread = int(config.get("device_spread", "1"))
+    prefill_events = generate_events(worker_id(), 0, num_events, device_spread=device_spread)
     mod.prefill_events(prefill_events)
     requests.post(f"{url}/prefill", json=dict(worker=worker_id()))
     wait_for_prefill_complete()
@@ -69,7 +70,8 @@ def run():
     else:
         sequence_number = 1
     num_events = int(config["num_inserts"])
-    events = generate_events(worker_id(), 0, num_events, sequence_number=sequence_number)
+    device_spread = int(config.get("device_spread", "1"))
+    events = generate_events(worker_id(), 0, num_events, sequence_number=sequence_number, device_spread=device_spread)
     time.sleep(2)
     start = time.time()
     mod.insert_events(events)
