@@ -31,6 +31,12 @@ After each run the workers reports statistics to the collector instance. The dat
 * Using more nodes than replicas will increase speed. This is most noticeable with YugabyteDB where the speed will increase from 3000 inserts/s with a 3 node cluster to 4200 inserts/s with a 5 node cluster and 3 replicas. For CockroachDB the effect is there but way less pronounced with 4000 vs 4500 inserts/s. ArangoDB shows no noticable increase for the same scenario.
 * ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 4500 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s. As long as ArangoDB is run in cluster mode enforcing sync should not be needed as replication ensures no data is lost if a single node goes down.
 
+#### Cassandra
+
+* As designing a serial primary key for opposes the main concepts of Cassandra we omitted this step and always relied on a db-generated unique partition key (device_id, timestamp)
+* Although the results of our benchmarks show a drastic improvement, batching in most cases is not a recommended way to improve performance when using Cassandra. The current results are based on a singular device_id (and thus partition key) per worker. This results in all batched messages being processed as one write operation. With multiple devices per batch statement load on the coordinator node would increase and lead to performance and ultimately stability issues. (See https://docs.datastax.com/en/cql-oss/3.3/cql/cql_using/useBatch.html) 
+* async vs sync
+
 ### Batch inserts
 
 For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
@@ -46,15 +52,15 @@ All values as inserts per second. Average value of 3 runs. All runs were done wi
 
 #### Single-node database
 
-|                                             | PostgreSQL | CockroachDB | YugabyteDB | ArangoDB |
-|---------------------------------------------|------------|-------------|------------|----------|
-| no batch, 16 workers, client-generated PK   |  12500     |  3850       | 2600       |   7000   |
-| no batch, 16 workers, db-generated PK       |  12500     |  3900       |  850       |   7000   |
-| batch 10, 16 workers, fastest PK mode       |  36900     |  3100       | 1600       |  51000   |
-| batch 100, 16 workers, fastest PK mode      |  44000     |  3730       | 2170       | 135000   |
-| batch 1000, 16 workers, fastest PK mode     |  44000     |  3830       | 2250       | 153000   |
-| values-lists 100 rows, 16 workers           | 190000     | 31000       | 6550       |          |
-| values-lists 1000 rows, 16 workers          | 175000     | 33000       | 7100       |          |
+|                                             | PostgreSQL | CockroachDB | YugabyteDB | ArangoDB | Cassandra sync | Cassandra async |
+|---------------------------------------------|------------|-------------|------------|----------|----------------| ----------------|
+| no batch, 16 workers, client-generated PK   |  12500     |  3850       | 2600       |   7000   |  -             | -               |
+| no batch, 16 workers, db-generated PK       |  12500     |  3900       |  850       |   7000   |  -             | -               |
+| batch 10, 16 workers, fastest PK mode       |  36900     |  3100       | 1600       |  51000   |  -             | -               |
+| batch 100, 16 workers, fastest PK mode      |  44000     |  3730       | 2170       | 135000   |  -             | -               |
+| batch 1000, 16 workers, fastest PK mode     |  44000     |  3830       | 2250       | 153000   |  -             | -               |
+| values-lists 100 rows, 16 workers           | 190000     | 31000       | 6550       |          |  -             | -               |
+| values-lists 1000 rows, 16 workers          | 175000     | 33000       | 7100       |          |  -             | -               |
 
 #### Multi-node database
 
@@ -73,14 +79,14 @@ All results with 16 workers, client-generated primary key for YugabyteDB and db-
 
 The results above were gathered with all the databases deployed with the default resource settings of their respective helm charts. As this would typically not be the deployment mode for a production installation we also ran the tests with the databases configured with more resources (for Yugabyte based on recommendations in their community slack). The values files in the `dbinstall` folder contain the increased settings commented out. These are the results:
 
-|                     | CockroachDB | YugabyteDB | ArangoDB |
-|---------------------|-------------|------------|----------|
-| 3 nodes, no batch   |  5000       | 7180       |   6300   |
-| 5 nodes, no batch   |  5000       | 8550       |   6300   |
-| 3 nodes, batch 100  | 14700       | 5270       |  95000   |
-| 3 nodes, batch 1000 | 14900       | 5640       | 110000   |
-| 5 nodes, batch 100  | 15530       | 7000       |  80000   |
-| 5 nodes, batch 1000 | 15000       | 8000       | 101000   |
+|                     | CockroachDB | YugabyteDB | ArangoDB | Cassandra sync | Cassandra async |
+|---------------------|-------------|------------|----------|----------------| ----------------|
+| 3 nodes, no batch   |  5000       | 7180       |   6300   |  30000         | 97500           |
+| 5 nodes, no batch   |  5000       | 8550       |   6300   |  -             | -               |
+| 3 nodes, batch 100  | 14700       | 5270       |  95000   |  -             | 540000          |
+| 3 nodes, batch 1000 | 14900       | 5640       | 110000   |  16611         | 540000          |
+| 5 nodes, batch 100  | 15530       | 7000       |  80000   |  -             | -               |
+| 5 nodes, batch 1000 | 15000       | 8000       | 101000   |  -             | -               |
 
 CockroachDB and YugabyteDB benefit the most from more resources and can increase their performance in average by a factor of 2 to 3. ArangoDB also shows an increase but not as pronounced as the others. Not shown here are results for PostgreSQL which stay roughly the same.
 

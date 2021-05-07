@@ -14,4 +14,12 @@ targets:
   postgresql:
     module: postgres
     connection_string: "host=postgres-postgresql.default port=5432 dbname=postgres user=postgres password=postgres"
+  cassandra:
+    module: cassandra
+    contact_points: "k8ssandra-bench-dc1-service"
+    keyspace: "benchmark"
+    replication_factor: 3
+    consistency_level: "LOCAL_QUORUM"
+    max_sync_calls: 1
+    device_spread: 1
 namespace: default
