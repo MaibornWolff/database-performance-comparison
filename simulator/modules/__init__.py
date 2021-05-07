@@ -8,5 +8,8 @@ def select_module():
     elif mod == "arangodb":
         from . import arangodb
         return arangodb
+    elif mod == "cassandra":
+        from . import cassandra
+        return cassandra
     else:
         raise Exception(f"Unknown module: {mod}")

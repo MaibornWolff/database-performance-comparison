@@ -13,6 +13,13 @@ spec:
     spec:
       containers:
       - name: worker
+        resources:
+            requests:
+              memory: 4G
+              cpu: 1
+            limits:
+              memory: 4G
+              cpu: 1
         image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: Always
         env:

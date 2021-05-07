@@ -1,0 +1,71 @@
+cassandra:
+  version: "4.0.0"
+  cassandraLibDirVolume:
+    storageClass: local-path
+    size: 10Gi
+  allowMultipleNodesPerWorker: true
+  auth:
+    enabled: false
+  heap:
+    size: 10G
+    newGenSize: 10G
+  resources:
+    requests:
+      cpu: 7
+      memory: 20Gi
+    limits:
+      cpu: 8
+      memory: 25Gi
+  datacenters:
+    - name: dc1
+      size: 3
+      racks:
+        - name: default
+  ingress:
+    enabled: false
+    traefik:
+      # -- Traefik entrypoint where traffic is sourced. See https://doc.traefik.io/traefik/routing/entrypoints/
+      entrypoint: cassandra
+kube-prometheus-stack:
+  enabled: false
+  coreDns:
+    enabled: false
+  kubeApiServer:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeDns:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeStateMetrics:
+    enabled: false
+  kubelet:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  grafana:
+    adminUser: admin
+    adminPassword: admin123
+    ingress:
+      enabled: true
+      hosts: ["grafana.localhost"]
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: "web"
+  prometheus:
+    ingress:
+      enabled: true
+      hosts: ["prometheus.localhost"]
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: "web"
+
+stargate:
+  enabled: false
+  replicas: 1
+  heapMB: 256
+  cpuReqMillicores: 200
+  cpuLimMillicores: 1000
