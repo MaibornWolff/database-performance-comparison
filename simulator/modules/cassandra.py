@@ -66,7 +66,7 @@ def _insert_events(events, batch_mode, batch_size):
 
     print("Inserting events", flush=True)
     if max_sync_calls > 1:
-        futures = Queue(maxsize=max_sync_calls)
+        futures = Queue(maxsize=max_sync_calls+1)
         for idx, stmt in enumerate(_generate_statements(events, statements_list, len(table_names), batch_mode, batch_size)):
             if idx >= max_sync_calls:
                 futures.get_nowait().result()
@@ -78,7 +78,7 @@ def _insert_events(events, batch_mode, batch_size):
             except queue.Empty:
                 break
     else:
-        for stmt in _generate_statements(events, statements_list, len(table_names), batch_mode):
+        for stmt in _generate_statements(events, statements_list, len(table_names), batch_mode, batch_size):
             session.execute(stmt)
     session.shutdown()
     print("Finished inserting", flush=True)
