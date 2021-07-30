@@ -12,21 +12,21 @@ storage:
 resource:
   master:
     requests:
-      cpu: 1
-      # cpu: 2
+      #cpu: 1
+      cpu: 2
       memory: 5Gi
     limits:
+      #cpu: 2
       cpu: 2
-      # cpu: 2
       memory: 10G
   tserver:
     requests:
-      cpu: 1
-      # cpu: 7
+      #cpu: 1
+      cpu: 7
       memory: 5Gi
     limits:
-      cpu: 2
-      # cpu: 8
+      #cpu: 2
+      cpu: 8
       memory: 10G
 
 replicas:
@@ -40,3 +40,6 @@ partition:
 gflags:
   tserver:
     ysql_sequence_cache_minval: 10000
+
+# nodeSelector:
+#   workload: db

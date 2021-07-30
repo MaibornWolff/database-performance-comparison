@@ -5,21 +5,37 @@ targets:
     database: _system
     username: root
     password: root
-  yugabyte:
+  yugabyte_sql:
     module: postgres
     connection_string: "host=yb-tservers.default port=5433 dbname=postgres user=yugabyte"
+  yugabyte_cql:
+    module: cassandra
+    contact_points: "yb-tservers.default"
+    keyspace: "benchmark"
+    replication_factor: 3
+    consistency_level: "LOCAL_QUORUM"
+    max_sync_calls: 1
+    device_spread: 1
   cockroachdb:
     module: postgres
     connection_string: "host=cockroachdb-public.default.svc.cluster.local port=26257 dbname=postgres"
   postgresql:
     module: postgres
     connection_string: "host=postgres-postgresql.default port=5432 dbname=postgres user=postgres password=postgres"
-  cassandra:
+  cassandra_sync:
     module: cassandra
-    contact_points: "k8ssandra-bench-dc1-service"
+    contact_points: "k8ssandra-dc1-service"
     keyspace: "benchmark"
     replication_factor: 3
     consistency_level: "LOCAL_QUORUM"
     max_sync_calls: 1
+    device_spread: 1
+  cassandra_async:
+    module: cassandra
+    contact_points: "k8ssandra-dc1-service"
+    keyspace: "benchmark"
+    replication_factor: 3
+    consistency_level: "LOCAL_QUORUM"
+    max_sync_calls: 120
     device_spread: 1
 namespace: default

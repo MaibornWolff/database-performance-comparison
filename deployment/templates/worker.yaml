@@ -39,4 +39,6 @@ spec:
               fieldPath: metadata.name
       restartPolicy: Never
       terminationGracePeriodSeconds: 2
+      nodeSelector:
+{{ .Values.nodeSelector | toYaml | indent 8 }}
   backoffLimit: 0

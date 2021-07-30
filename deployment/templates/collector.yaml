@@ -27,6 +27,8 @@ spec:
         - name: RUN_CONFIG
           value: "{{ .Values.run_config }}"
       terminationGracePeriodSeconds: 2
+      nodeSelector:
+{{ .Values.nodeSelector | toYaml | indent 8 }}
 ---
 apiVersion: v1
 kind: Service

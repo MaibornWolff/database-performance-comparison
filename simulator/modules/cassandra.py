@@ -18,6 +18,9 @@ def prefill_events(events):
 
 def init():
     session: cassandra.cluster.Session = _db()
+    if config["clean_database"]:
+        for table_name in ["events0", "events1", "events2", "events3", "events"]:
+            session.execute(f"DROP TABLE IF EXISTS {KEYSPACE}.{table_name}")
     session.execute(f"""DROP KEYSPACE IF EXISTS {KEYSPACE}""")
     session.execute(f"""CREATE KEYSPACE IF NOT EXISTS {KEYSPACE}
         WITH replication = {{ 'class': 'SimpleStrategy', 'replication_factor':{config["replication_factor"]}}}

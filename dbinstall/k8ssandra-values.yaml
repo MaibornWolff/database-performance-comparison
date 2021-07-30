@@ -21,6 +21,8 @@ cassandra:
       size: 3
       racks:
         - name: default
+          # affinityLabels:
+          #   workload: db
   ingress:
     enabled: false
     traefik:

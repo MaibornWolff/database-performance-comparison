@@ -7,3 +7,6 @@ workers: 1
 image:
   name: maibornwolff/database-comparison
   tag: latest
+
+nodeSelector: {}
+  #workload: client

@@ -7,13 +7,15 @@ spec:
   mode: Cluster
   dbservers:
     count: 3
-    # resources:
-    #   requests:
-    #     cpu: 7
-    #     memory: 5Gi
-    #   limits:
-    #     cpu: 8
-    #     memory: 10G
+    resources:
+      requests:
+        cpu: 7
+        memory: 5Gi
+      limits:
+        cpu: 8
+        memory: 10G
+    # nodeSelector:
+    #   workload: db
   tls:
     caSecretName: None
   image: arangodb/arangodb:3.6.1

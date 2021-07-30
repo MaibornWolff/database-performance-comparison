@@ -3,13 +3,15 @@ storage:
     size: 5Gi
 statefulset:
   replicas: 3
-  # resources:
-  #   limits:
-  #     cpu: "8"
-  #     memory: "16Gi"
-  #   requests:
-  #     cpu: "7"
-  #     memory: "8Gi"
+  resources:
+    limits:
+      cpu: "8"
+      memory: "16Gi"
+    requests:
+      cpu: "7"
+      memory: "8Gi"
+  # nodeSelector:
+  #   workload: db
 conf:
   #single-node: true
   cache: "2Gi"
