@@ -36,11 +36,12 @@ def init():
     for table_name in table_names:
         cur.execute(
         f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (id {pk_column} PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS {table_name} (id {pk_column} ,
             timestamp bigint,
             device_id varchar,
             sequence_number bigint,
-            temperature real
+            temperature real,
+            {config.get("primary_key_constraint","PRIMARY KEY (id)")}
             )
         """)
     db.commit()
