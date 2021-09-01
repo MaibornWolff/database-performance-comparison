@@ -7,7 +7,7 @@ targets:
     password: root
   yugabyte_sql:
     module: postgres
-    connection_string: "host=yb-tservers.default port=5433 dbname=postgres user=yugabyte"
+    connection_string: "host=yb1.pachot.net port=5433 dbname=yugabyte user=yugabyte"
   yugabyte_cql:
     module: cassandra
     contact_points: "yb-tservers.default"
