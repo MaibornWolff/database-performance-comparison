@@ -24,7 +24,14 @@ def init():
         for table_name in ["events0", "events1", "events2", "events3", "events"]:
             cur.execute(f"""DROP TABLE IF EXISTS {table_name}""")
         db.commit()
-    pk_column = "serial" if config["primary_key"] == "db" else "varchar"
+    # "primary_key" can be "client" to generate the PK value from the application, or "db" to use the "serial"
+    #  or "sql" for the SQL standard generated column, and then the cache size is the batch size
+    if config["primary_key"] == "sql":
+     pk_column = f'bigint generated always as identity ( start with 1 cache {config.get("batch_size", 100)} )'
+    elif config["primary_key"] == "db":
+        pk_column = "serial"
+    else:
+        pk_column = "varchar" 
 
     for table_name in table_names:
         cur.execute(
@@ -68,7 +75,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
         count = 0
         values_lists = [list() for _ in range(4 if use_multiple_tables else 1)]
         for idx, event in enumerate(events):
-            if config["primary_key"] == "db":
+            if config["primary_key"] != "client":
                 val = (event.timestamp, event.device_id, event.sequence_number, event.temperature)
             else:
                 event_id = f"{event.device_id}{event.timestamp}{event.sequence_number}"
@@ -80,7 +87,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
             count += 1
             if count >= batch_size:
                 for table_index, values in enumerate(values_lists):
-                    if config["primary_key"] == "db":
+                    if config["primary_key"] != "client":
                         psycopg2.extras.execute_values(cur, f"INSERT INTO {table_names[table_index]} (timestamp, device_id, sequence_number, temperature) VALUES %s", values)
                     else:
                         psycopg2.extras.execute_values(cur, f"INSERT INTO {table_names[table_index]} (id, timestamp, device_id, sequence_number, temperature) VALUES %s", values)
@@ -89,7 +96,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
                 count = 0
         if count > 0:
             for table_index, values in enumerate(values_lists):
-                if config["primary_key"] == "db":
+                if config["primary_key"] != "client":
                     psycopg2.extras.execute_values(cur, f"INSERT INTO {table_names[table_index]} (timestamp, device_id, sequence_number, temperature) VALUES %s", values)
                 else:
                     psycopg2.extras.execute_values(cur, f"INSERT INTO {table_names[table_index]} (id, timestamp, device_id, sequence_number, temperature) VALUES %s", values)
@@ -102,7 +109,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
             else:
                 table_name = "events"
 
-            if config["primary_key"] == "db":
+            if config["primary_key"] != "client":
                 cur.execute(f"INSERT INTO {table_name} (timestamp, device_id, sequence_number, temperature) VALUES (%s, %s, %s, %s)",
                         (event.timestamp, event.device_id, event.sequence_number, event.temperature))
             else:
