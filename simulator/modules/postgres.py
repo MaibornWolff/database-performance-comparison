@@ -107,14 +107,13 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
     elif not(use_values_lists) and batch_mode: # This uses the COPY mode of Postgres, when in batch without a VALUES list
         count = 0
         # the values_lists here is a StringIO containing the TSV to COPY
-        # TODO: check from pg_settings where name='yb_default_copy_from_rows_per_transaction' so that all can be run in one call on YugabyteDB
         values_lists = [io.StringIO() for _ in range(4 if use_multiple_tables else 1)]
         for idx, event in enumerate(events):
-            if config["primary_key"] != "client": #franck#
-                val = f'{event.timestamp}\t{event.device_id}\t{event.sequence_number}\t{event.temperature}\n' #franck#
+            if config["primary_key"] != "client": 
+                val = f'{event.timestamp}\t{event.device_id}\t{event.sequence_number}\t{event.temperature}\n' 
             else:
                 event_id = f"{event.device_id}{event.timestamp}{event.sequence_number}"
-                val = f'{event_id}\t{event.timestamp}\t{event.device_id}\t{event.sequence_number}\t{event.temperature}\n' #franck#
+                val = f'{event_id}\t{event.timestamp}\t{event.device_id}\t{event.sequence_number}\t{event.temperature}\n' 
             if use_multiple_tables:
                 values_lists[idx%4].writelines(val)
             else:
@@ -123,7 +122,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
             if count >= batch_size:
                 for table_index, values in enumerate(values_lists):
                     values.seek(0)
-                    if config["primary_key"] != "client": #franck#
+                    if config["primary_key"] != "client": 
                         cur.copy_from(values,table_names[table_index],sep="\t",columns=('timestamp', 'device_id', 'sequence_number', 'temperature'))
                     else:
                         cur.copy_from(values,table_names[table_index],sep="\t",columns=('id','timestamp', 'device_id', 'sequence_number', 'temperature'))
@@ -134,7 +133,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
         if count > 0:
                 for table_index, values in enumerate(values_lists):
                     values.seek(0)
-                    if config["primary_key"] != "client": #franck#
+                    if config["primary_key"] != "client": 
                         cur.copy_from(values,table_names[table_index],sep="\t",columns=('timestamp', 'device_id', 'sequence_number', 'temperature'))                   
                     else:
                         cur.copy_from(values,table_names[table_index],sep="\t",columns=('id','timestamp', 'device_id', 'sequence_number', 'temperature'))
