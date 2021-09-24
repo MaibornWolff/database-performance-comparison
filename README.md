@@ -90,8 +90,7 @@ To run the test use `python run.py`. You can use the following options:
 * `--target`: The target database to use (name must correspond to the target name in `config.yaml`). This is required
 * `--workers`: Set of worker counts to try, default is `1,4,8,12,16` meaning the test will try with 1 concurrent worker, then with 4, then 8, then 12 and finally 16
 * `--runs`: How often should the test be repeated for each worker count, default is `3`.
-* `--primary-key`: Depending on the database using auto-generated primary keys (e.g. using the `SERIAL` type) can slow down the insert rate. Setting this to `db` means the database generates the primary key with the SERIAL datatype for compatibility with old PostgreSQL versions. Setting it to `sql` uses the standard GENERATED ALWAYS ... AS IDENTITY with a sequence cache size equal to the batch size, setting it to `client` means the workers supply a `varchar` primary key that is calculated based on the message content
-* `--primary-key-constraint`: By default the primary key is declared as `PRIMARY KEY (id)`. This option can replace it, for example to use the natural key `PRIMARY KEY (device_id, timestamp, sequence_number)` or even define the sharding like `PRIMARY KEY (device_id hash, timestamp asc, sequence_number asc)` for YugabyteDB
+* `--primary-key`: Defines how the primary key should be generated, see below for choices. Defaults to `db`
 * `--tables`: To simulate how the databases behave if inserts are done to several tables this option can be changed from `single` to `multiple` to have the test write into four instead of just one table
 * `--num-inserts`: The number of inserts each worker should do, by default 10000 to get a quick result. Increase this to see how the databases behave under constant load. Also increase the timout option accordingly
 * `--timeout`: How long should the script wait for the insert test to complete in seconds. Default is `0`. Increase accordingly if you increase the number of inserts or disable by stting to `0`
@@ -102,6 +101,16 @@ To run the test use `python run.py`. You can use the following options:
 * `--steps`: Test performance with increasing database fill levels. Specifies the number of steps to do
 
 If the test takes too long and the timeout is reached or the script runs into any problems it will crash. To clean up you must then manually uninstall the simulator by running `helm uninstall dbtest`.
+
+### Primary key
+
+There are several options on how the primary key for the database table can be generated, defined by the `--primary-key` option:
+
+* `db`: The database generates a primary key using the SERIAL datatype for compatibility with old PostgreSQL versions
+* `sql`: The database uses the standard `GENERATED ALWAYS ... AS IDENTITY` with a sequence cache size equal to the batch size for the primary key
+* `client`: The workers supply a `varchar` primary key that is calculated based on the message content
+
+Additionally you can change how the primary key is defined by setting the `primary_key_constraint` extra-option. By default the primary key is declared as `PRIMARY KEY (id)`. This option can replace it, for example to use the natural key `PRIMARY KEY (device_id, timestamp, sequence_number)` or even define the sharding like `PRIMARY KEY (device_id hash, timestamp asc, sequence_number asc)` for YugabyteDB.
 
 ### Prefill
 

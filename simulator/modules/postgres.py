@@ -104,7 +104,7 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
                 else:
                     psycopg2.extras.execute_values(cur, f"INSERT INTO {table_names[table_index]} (id, timestamp, device_id, sequence_number, temperature) VALUES %s", values)
             db.commit()
-    elif not(use_values_lists) and batch_mode: # This uses the COPY mode of Postgres, when in batch without a VALUES list
+    elif not use_values_lists and batch_mode: # This uses the COPY mode of Postgres, when in batch without a VALUES list
         count = 0
         # the values_lists here is a StringIO containing the TSV to COPY
         values_lists = [io.StringIO() for _ in range(4 if use_multiple_tables else 1)]
