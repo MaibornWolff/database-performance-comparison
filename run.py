@@ -11,7 +11,7 @@ from cli.test_run import one_run
 @click.option('-c', '--config', default="config.yaml", help="Name of the config file to use")
 @click.option('-w', '--workers', default="1,4,8,12,16", help="Sets of worker counts to use, separate by comma without space, default='1,4,8,12,16'")
 @click.option('-r', '--runs', default=3, help='Number of runs per worker count, default=3')
-@click.option("--primary-key", default="db", type=click.Choice(['sql', 'db', 'client'], case_sensitive=False))
+@click.option("--primary-key", default="db", type=click.Choice(['sql', 'db', 'client', 'uuid'], case_sensitive=False))
 @click.option("--tables", default="single", type=click.Choice(['single', 'multiple'], case_sensitive=False))
 @click.option("--num-inserts", default=10000, help="Number of inserts per worker, default=10000")
 @click.option("--prefill", default=0, help="Insert this number of events into the table before starting the test run, default=0")

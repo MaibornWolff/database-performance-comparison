@@ -8,6 +8,8 @@ targets:
   yugabyte_sql:
     module: postgres
     connection_string: "host=yb-tservers.default port=5433 dbname=postgres user=yugabyte"
+    # Yugabyte needs this extension for the gen_random_uuid function
+    install_extensions: pgcrypto
   yugabyte_cql:
     module: cassandra
     contact_points: "yb-tservers.default"

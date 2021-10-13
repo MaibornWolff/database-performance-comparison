@@ -27,31 +27,29 @@ After each run the workers reports statistics to the collector instance. The dat
 For generating primary keys for the events we have two modes: Calculating it on the client side based on some of the fields that from a functional perspective guarantee uniqueness, or having the database increment a `SERIAL` primary key field. The exception here is Cassandra as using serial primary keys for rows opposes the main concepts of Cassandra we omitted this step and always relied on a db-generated unique partition key (device_id, timestamp).
 
 For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
-For ArangoDB batch mode is implemented using the document batch API (`/_api/document`), the older generic batch API (`/_api/batch`) will be deprecated and produces worse performance so we did not use it. For PostgreSQL we implemented batch mode by doing a manual commit every x inserts and using COPY instead of INSERT. Another way to implement batch inserts is to use values lists (one insert statement with a list of values tuples) but this is not as fast as COPY. This mode can however be activated by passing `--extra-option use_values_lists=true`. 
+For ArangoDB batch mode is implemented using the document batch API (`/_api/document`), the older generic batch API (`/_api/batch`) will be deprecated and produces worse performance so we did not use it. For PostgreSQL we implemented batch mode by doing a manual commit every x inserts and using COPY instead of INSERT. Another way to implement batch inserts is to use values lists (one insert statement with a list of values tuples) but this is not as fast as COPY. This mode can however be activated by passing `--extra-option use_values_lists=true`.
 
 ### Insert performance
 
-The table below shows the best results for the databases for a 3 node cluster (PostgreSQL being the exception having only a single instance) and a resource limit of 8 cores and 10 GB memory per node. All tests were done with a db-generated primary key except for CockroachDB for which we used a client-generated key.
+The table below shows the best results for the databases for a 3 node cluster (PostgreSQL being the exception having only a single instance) and a resource limit of 8 cores and 10 GB memory per node. All tests were run with the newest available version of the databases at the time of testing.
 
-| Database                                    | Inserts/s  | Insert mode                               |
-|---------------------------------------------|------------|-------------------------------------------|
-| PostgreSQL                                  | 215000     | values lists, size 1000                   |
-| CockroachDB                                 |  14900     | values lists, size 1000                   |
-| YugabyteDB YSQL                             |  19600     | values lists, size 1000                   |
-| YugabyteDB YCQL                             | 250000     | batch mode, size 1000                   |
-| ArrangoDB                                   | 137000     | batch mode, size 1000                     |
-| Cassandra sync inserts                      | 389000     | batch mode, size 1000, max_sync_calls 1   |
-| Cassandra async inserts                     | 410000     | batch mode, size 1000, max_sync_calls 120 |
+| Database                                    | Inserts/s  | Insert mode                          | Primary-key mode |
+|---------------------------------------------|------------|--------------------------------------|------------------|
+| PostgreSQL                                  | 428000     | copy, size 1000                      | sql              |
+| CockroachDB                                 |  91000     | values lists, size 1000              | db               |
+| YugabyteDB YSQL                             |  37600     | copy, size 1000                      | sql              |
+| YugabyteDB YCQL                             | 250000     | batch, size 1000                     | -                |
+| ArrangoDB                                   | 137000     | batch, size 1000                     | db               |
+| Cassandra sync inserts                      | 389000     | batch, size 1000, max_sync_calls 1   | -                |
+| Cassandra async inserts                     | 410000     | batch, size 1000, max_sync_calls 120 | -                |
 
 You can find additional results from older runs in [old-results.md](old-results.md) but be aware that comparing them with the current ones is not always possible due to different conditions during the runs.
 
-For PostgreSQL using batch mode increases the performance dramatically. With a batch size of 100 (so 100 inserts are accumulated until a commit is done) we achieved about 44000 inserts/s. Increasing the batch size further does not significantly improve performance. By using values lists performance can be increased even more.
+PostgreSQL can achieve very impressive speeds. Using single row inserts grouped into transactions we got about 44000 inserts/s. Using values lists we could increase that to about 215000 insert/s. But top speed was gained using the copy mode. Considering this is a single instance database without any specific database-side tuning that is really impressive and shows that PostgreSQL can still be the right choice for many usecases.
 
-When testing CockroachDB we sometimes ran into problems where transactions would error out with `TransactionAbortedError(ABORT_REASON_NEW_LEASE_PREVENTS_TXN)`. This slowed down testing and performance as we had to do retries to compensate.
+Earlier results for CockroachDB were way lower due to problems with `TransactionAbortedError(ABORT_REASON_NEW_LEASE_PREVENTS_TXN)` and potentially also optimizations in newer versions. The current test code implements a retry mechanism to compensate. Due to an incompatibility between CockroachDB and psycopg2 the copy mode could not be used. CockroachDB recommends using randomly-generated UUIDs in place of classical SERIAL primary keys, interestingly using the default SERIAL primary key shows better performance than using an UUID key (only about 57000 inserts/s). There seems to be no big difference between using a db-generated primary key and a client-generated one.
 
-For Yugabyte using YCQL instead of YSQL leverages enormous speed gains. But it comes at the cost of YCQL being less powerfull than YSQL in terms of queries. This needs to be balanced for each usecase individually to decide if all targeted queries can be done using YCQL or if YSQL really is needed.
-
-The design of the primary key can have a huge impact on performance. For YugabyteDB speed drops to about one third when using a `SERIAL` primary key regardless of single or multi node instances. This indicates that the implementation of that algorithm suffers from the multi node synchronization and has no shortcut for single node clusters. CockroachDB shows a speed drop of about 10% so it is measureable but not as extreme. PostgreSQL has no measureable change. The same is true for ArangoDB.
+For Yugabyte using copy mode instead of values lists about doubles the insert speed. Using YCQL instead of YSQL leverages enormous speed gains. But it comes at the cost of YCQL being less powerfull than YSQL in terms of queries. This needs to be balanced for each usecase individually to decide if all targeted queries can be done using YCQL or if YSQL really is needed.
 
 ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 4500 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s. As long as ArangoDB is run in cluster mode enforcing sync should not be needed as replication ensures no data is lost if a single node goes down. So for our multi-node test we did not enforce sync.
 
@@ -62,7 +60,7 @@ Although the results of our benchmarks show a drastic improvement, batching in m
 
 ### Requirements
 
-* A kubernetes cluster (tested with k3s 1.19.3 and minikube, any other should also work)
+* A kubernetes cluster (tested with k3s 1.20.5 and minikube, any other should also work)
 * Locally installed:
   * Python >= 3.8
   * kubectl
