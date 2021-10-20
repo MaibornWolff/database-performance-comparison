@@ -17,7 +17,7 @@ def http_request(url):
     raise Exception("http_request failed with retry")
 
 
-def one_run(num_workers, run_config, target_module, timeout, namespace):
+def one_run(num_workers, run_config, target_module, timeout, namespace, endpoint="/report/insert"):
     kube = Kubernetes()
     res = subprocess.run(["helm", "install", "-n", namespace, "dbtest", ".", "--set", f"workers={num_workers}", "--set", f"run_config={run_config}", 
                             "--set", f"target_module={target_module}", "--set", f"namespace={namespace}"], cwd="deployment", stdout=subprocess.DEVNULL)
@@ -34,8 +34,8 @@ def one_run(num_workers, run_config, target_module, timeout, namespace):
         time.sleep(10)
     collector_pod_name = kube.find_pod(namespace, "app", "dbtest-collector")
     kube.patch_socket()
-    results = json.loads(http_request(f"http://{collector_pod_name}.pod.{namespace}.kubernetes:5000/report"))
+    results = json.loads(http_request(f"http://{collector_pod_name}.pod.{namespace}.kubernetes:5000{endpoint}"))
     res = subprocess.run(f"helm uninstall -n {namespace} dbtest".split(" "), stdout=subprocess.DEVNULL)
     res.check_returncode()
     kube.wait_for_pods_terminated(namespace, "app", "dbtest-worker")
-    return results["sum"]["ops_per_second"]
+    return results

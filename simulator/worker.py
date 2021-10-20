@@ -55,18 +55,19 @@ def do_prefill(mod):
     return num_events + 1
 
 
-def report_results(ops, duration):
+def run_queries(module):
+    print("Running query task", flush=True)
+    results = module.queries()
+    print("Transmitting results")
+    data = dict(worker=worker_id(), results=results)
     url = os.environ.get("COLLECTOR_URL", "http://localhost:5000")
-    data = dict(worker=worker_id(), operations=ops, duration=duration)
     print(requests.post(f"{url}/result", json=data))
 
 
-def run():
-    print("Starting run", flush=True)
-    mod = select_module()
-    wait_for_collector_init()
+def run_insert(module):
+    print("Running insert task")
     if config["prefill"]:
-        sequence_number = do_prefill(mod)
+        sequence_number = do_prefill(module)
     else:
         sequence_number = 1
     num_events = int(config["num_inserts"])
@@ -74,6 +75,21 @@ def run():
     events = generate_events(worker_id(), 0, num_events, sequence_number=sequence_number, device_spread=device_spread)
     time.sleep(2)
     start = time.time()
-    mod.insert_events(events)
+    module.insert_events(events)
     duration = time.time() - start
-    report_results(num_events, duration)
+    url = os.environ.get("COLLECTOR_URL", "http://localhost:5000")
+    data = dict(worker=worker_id(), operations=num_events, duration=duration)
+    print(requests.post(f"{url}/result", json=data))
+
+
+def run():
+    print("Starting run", flush=True)
+    module = select_module()
+    wait_for_collector_init()
+    task = config.get("task", "insert")
+    if task == "query":
+        run_queries(module)
+    elif task == "insert":
+        run_insert(module)
+    else:
+        raise Exception(f"Unknown task: {task}")

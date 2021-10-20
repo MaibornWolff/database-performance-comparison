@@ -1,4 +1,5 @@
 import io
+import time
 import psycopg2
 import psycopg2.extras
 from .config import config
@@ -198,3 +199,36 @@ def _single_insert_mode(events, use_multiple_tables, batch_size, batch_mode):
     if batch_mode:
         db.commit()
     cur.close()
+
+
+_indices = [
+    "CREATE INDEX IF NOT EXISTS events_device_ts ON events (device_id, timestamp ASC)",
+    "CREATE INDEX IF NOT EXISTS events_temp ON events (temperature ASC)",
+]
+
+_queries = {
+    "count-events": "SELECT count(*) FROM events",
+    "temperature-min-max": "SELECT max(temperature), min(temperature) FROM events",
+    "temperature-stats": "SELECT max(temperature), avg(temperature), min(temperature) FROM events",
+    "temperature-stats-per-device": "SELECT device_id, max(temperature), avg(temperature), min(temperature) FROM events GROUP BY device_id",
+    "newest-per-device": "SELECT e.device_id, e.temperature FROM events e JOIN (SELECT device_id, max(timestamp) as ts FROM events GROUP BY device_id) newest ON e.device_id=newest.device_id AND e.timestamp = newest.ts",
+}
+
+def queries():
+    db = _db()
+    cur = db.cursor()
+    if config.get("create_indices", "false").lower() == "true":
+        for index in _indices:
+            cur.execute(index)
+        db.commit()
+
+    query_times = dict([(name, []) for name in _queries.keys()])
+    for i in range(int(config["runs"])):
+        for name, query in _queries.items():
+            start = time.time()
+            cur.execute(query)
+            list(cur.fetchall()) # Force client to actually fetch results
+            duration = time.time() - start
+            query_times[name].append(duration)
+
+    return query_times

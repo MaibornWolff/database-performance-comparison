@@ -22,7 +22,7 @@ All tests were run on an empty database.
 
 Upon execution the helm chart found in `deployment/` is installed on the cluster. By default we execute 3 runs and average out the results to compensate for fluctuations in performance. A run consists of the workers and one collector instance being spawned in individual pods inside the same k3s cluster. Due to node selectors workers could not run on the same nodes as DB instances to avoid interference.
 Each worker generates and writes the configured amount of events into the database. Event schemata and API usage are found in `simulator/modules/{database_name}.py` (note: for cockroachdb and yugabytedb we use the postgres module), event generation logic may be reviewed under `simulator/modules/event_generator.py`.
-After each run the workers reports statistics to the collector instance. The database is wiped inbetween separate runs to have a reproducible baseline.
+After each run the workers report statistics to the collector instance. The database is wiped inbetween separate runs to have a reproducible baseline.
 
 For generating primary keys for the events we have two modes: Calculating it on the client side based on some of the fields that from a functional perspective guarantee uniqueness, or having the database increment a `SERIAL` primary key field. The exception here is Cassandra as using serial primary keys for rows opposes the main concepts of Cassandra we omitted this step and always relied on a db-generated unique partition key (device_id, timestamp).
 
@@ -83,11 +83,11 @@ Note: The provided values are for a k3s cluster. If you use another distribution
 
 ### Run the test
 
-To run the test use `python run.py`. You can use the following options:
+To run the test use `python run.py insert`. You can use the following options:
 
 * `--target`: The target database to use (name must correspond to the target name in `config.yaml`). This is required
 * `--workers`: Set of worker counts to try, default is `1,4,8,12,16` meaning the test will try with 1 concurrent worker, then with 4, then 8, then 12 and finally 16
-* `--runs`: How often should the test be repeated for each worker count, default is `3`.
+* `--runs`: How often should the test be repeated for each worker count, default is `3`
 * `--primary-key`: Defines how the primary key should be generated, see below for choices. Defaults to `db`
 * `--tables`: To simulate how the databases behave if inserts are done to several tables this option can be changed from `single` to `multiple` to have the test write into four instead of just one table
 * `--num-inserts`: The number of inserts each worker should do, by default 10000 to get a quick result. Increase this to see how the databases behave under constant load. Also increase the timout option accordingly
@@ -99,6 +99,15 @@ To run the test use `python run.py`. You can use the following options:
 * `--steps`: Test performance with increasing database fill levels. Specifies the number of steps to do
 
 If the test takes too long and the timeout is reached or the script runs into any problems it will crash. To clean up you must then manually uninstall the simulator by running `helm uninstall dbtest`.
+
+The query test can be run using `python run.py query`. You can use the following options:
+
+* `--target`: The target database to use (name must correspond to the target name in `config.yaml`). This is required
+* `--workers`: Number of concurrent workers that should issue queries
+* `--runs`: How often should each query be issued, default is `3`
+* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default is `0`. Increase accordingly if you increase the number of inserts or disable by stting to `0`
+
+Before running the query test use the insert test to provide an appropriate amount of data.
 
 ### Primary key
 

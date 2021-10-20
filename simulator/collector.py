@@ -2,6 +2,7 @@ import os
 import time
 from flask import Flask, request, jsonify, make_response
 from modules import select_module
+from modules.config import config
 
 
 app = Flask(__name__)
@@ -37,8 +38,8 @@ def report_result():
     return "OK"
 
 
-@app.route("/report")
-def collect_results():
+@app.route("/report/insert")
+def collect_results_insert():
     report = dict()
     report["workers"] = results
     sum_ops, sum_duration = 0, 0
@@ -50,8 +51,30 @@ def collect_results():
     return jsonify(report)
 
 
+@app.route("/report/queries")
+def collect_results_queries():
+    report = dict()
+    queries = dict([(name, []) for name in list(results.values())[0]["results"].keys()])
+    report["workers"] = results
+    report["queries"] = dict()
+    
+    for worker in results.values():
+        for name, values in worker["results"].items():
+            queries[name].extend(values)
+
+    for name, values in queries.items():
+        report["queries"][name] = {
+            "min": min(values),
+            "max": max(values),
+            "avg": sum(values)/len(values),
+        }
+    
+    return jsonify(report)
+
 def run():
-    select_module().init()
+    module = select_module()
+    if config.get("task", "insert") == "insert":
+        module.init()
     # It looks like in some cases for yugabytedb the created table is not instantly available for all workers so wait a few seconds
     time.sleep(10) 
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=False)
