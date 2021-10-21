@@ -14,7 +14,7 @@ This readme contains three sections:
 
 ## Benchmark
 
-Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB, ArangoDB and Cassandra with (aside from PostgreSQL) 3 nodes and 16 parallel workers that insert data (more concurrent workers might speed up the process but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 8 m5ad.2xlarge (8vCPU, 32GB memory) and 3 i3.8xlarge (32vCPU, 244GB memory) EC2 instances on AWS. The database pods were run on the i3 instances with a resource limit of 8 cores and 10 GB memory per node, the client pods of the benchmark on the m5ad instances. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes.
+Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB, ArangoDB, Cassandra and InfluxDB with (aside from PostgreSQL and InfluxDB) 3 nodes and 16 parallel workers that insert data (more concurrent workers might speed up the process but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 8 m5ad.2xlarge (8vCPU, 32GB memory) and 3 i3.8xlarge (32vCPU, 244GB memory) EC2 instances on AWS. The database pods were run on the i3 instances with a resource limit of 8 cores and 10 GB memory per node, the client pods of the benchmark on the m5ad instances. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes.
 
 All tests were run on an empty database.
 
@@ -31,7 +31,7 @@ For ArangoDB batch mode is implemented using the document batch API (`/_api/docu
 
 ### Insert performance
 
-The table below shows the best results for the databases for a 3 node cluster (PostgreSQL being the exception having only a single instance) and a resource limit of 8 cores and 10 GB memory per node. All tests were run with the newest available version of the databases at the time of testing.
+The table below shows the best results for the databases for a 3 node cluster (PostgreSQL and InfluxDB being the exception having only a single instance) and a resource limit of 8 cores and 10 GB memory per node. All tests were run with the newest available version of the databases at the time of testing.
 
 | Database                                    | Inserts/s  | Insert mode                          | Primary-key mode |
 |---------------------------------------------|------------|--------------------------------------|------------------|
@@ -42,6 +42,7 @@ The table below shows the best results for the databases for a 3 node cluster (P
 | ArrangoDB                                   | 137000     | batch, size 1000                     | db               |
 | Cassandra sync inserts                      | 389000     | batch, size 1000, max_sync_calls 1   | -                |
 | Cassandra async inserts                     | 410000     | batch, size 1000, max_sync_calls 120 | -                |
+| InfluxDB                                    | 460000     | batch, size 1000                     | -                |
 
 You can find additional results from older runs in [old-results.md](old-results.md) but be aware that comparing them with the current ones is not always possible due to different conditions during the runs.
 
@@ -55,6 +56,35 @@ ArangoDB achieves much of its speed by doing asynchronous writes as a normal ins
 
 For Cassandra we implemented two modes. One where after each insert the client waits for confirmation from the coordinator that the write was processed (called sync inserts in the table) and one where the clients sends several requests asynchronously. The limit of how many requests can be in-flight can be configured using the `max_sync_calls` parameter.
 Although the results of our benchmarks show a drastic improvement, batching in most cases is not a recommended way to improve performance when using Cassandra. The current results are based on a singular device_id (and thus partition key) per worker. This results in all batched messages being processed as one write operation. With multiple devices per batch statement load on the coordinator node would increase and lead to performance and ultimately stability issues. (See [datastax docs on batching](https://docs.datastax.com/en/cql-oss/3.3/cql/cql_using/useBatch.html)).
+
+### Query performance
+
+| Database / Query | count-events | temperature-min-max | temperature-stats | temperature-stats-per-device | newest-per-device |
+|------------------|--------------|---------------------|-------------------|------------------------------|-------------------|
+| PostgreSQL       |           39 |                0.01 |                66 |                          119 |                92 |
+| YugabyteDB YSQL  |           37 |                0.02 |               300 |                          628 |               907 |
+| CockroachDB      |          123 |                 153 |               153 |                          153 |               150 |
+| InfluxDB         |           10 |                  48 |                70 |                           71 |               0.1 |
+
+This is a work-in-progress, the other databases have not yet been tested and numbers for the databases listed are a first shot.
+
+All queries were run several times against a database with 500 million rows. The table gives the average query duration in seconds. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution.
+
+Explanations for the queries:
+
+* count-events: Get the number of events in the database (for SQL `SELECT COUNT(*) FROM events`)
+* temperature-min-max: Get the global minimum and maximum temperature over all devices. SQL databases can optimize here and use the index on temperature to speed up the query
+* temperature-stats: The global minimum, average and maximum temperature over all devices
+* temperature-stats-per-device: The minimum, average and maximum temperature per device
+* newest-per-device: The newest temperature recorded per device
+
+To see how the queries are formulated take a look at the `_queries` field in the `simulator/models/postgres.py` and `simulator/models/influxdb.py` files.
+
+Both PostgeSQL and YugabyteDB take advantage of a provided index on temperature and are able to efficiently calculate the minimum and maximum temperature. CockroachDB seems to not have that optimization and needs a table scan to calculate the result.
+
+When doing the query test against InfluxDB the service received an OOM kill with the insert configuration. To successfully complete the queries the service memory had to be increased to 100Gi.
+
+For all databases there seems to be a rough linear correlation between query times and database size. So when running the tests with only 50 million rows the query times were about 10 times as fast.
 
 ## Running the tests
 
@@ -227,6 +257,29 @@ helm install k8ssandra k8ssandra/k8ssandra -f dbinstall/k8ssandra-values.yaml
 Note: In some tests we ran into timeouts during inserts. To compensate we edited the CassandraDatacenter resource after installation and added `write_request_timeout_in_ms: 10000` to the cassandra config.
 
 For Cassandra the special parameter `max_sync_calls` can be specified. Setting it to `1` will have the client behave in a synchronous manner, waiting for the coordinator to confirm the insert before sending the next. Setting it to a value greater than one will have the client keep that many insert requests in flight and only blocking when the number is reached.
+
+### InfluxDB
+
+InfluxDB is a representitive of timeseries databases. We use the opensource version so test with only a single node.
+
+For the test we installed InfluxDB using:
+
+```bash
+helm repo add influxdata https://helm.influxdata.com/
+helm install influxdb influxdata/influxdb2 -f dbinstall/influxdb-values.yaml
+```
+
+The InfluxDB test module ignores the primary key and multiple table options.
+
+## Remarks on the databases
+
+This is a collection of problems / observations collected over the course of the tests.
+
+* When inserting data CockroachDB sometimes errors out with `TransactionAbortedError(ABORT_REASON_NEW_LEASE_PREVENTS_TXN)`. The solution was to implement client-side retry.
+* Yugabyte in YCQL mode sometimes ran into problems with `Read RPC timed out`.
+* Cassandra had also problems with timeouts:
+  * The 60 seconds timeout for batch inserts used in the client was sometimes not enough.
+  * Some requests failed with the cassandra coordinator node running into timeouts while waiting for the replicas during inserts. Solution was to increase the write timeout in cassandra.
 
 ## Developing
 

@@ -11,5 +11,8 @@ def select_module():
     elif mod == "cassandra":
         from . import cassandra
         return cassandra
+    elif mod == "influxdb":
+        from . import influxdb
+        return influxdb
     else:
         raise Exception(f"Unknown module: {mod}")

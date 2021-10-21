@@ -40,4 +40,10 @@ targets:
     consistency_level: "LOCAL_QUORUM"
     max_sync_calls: 120
     device_spread: 1
+  influxdb:
+    module: influxdb
+    endpoint: "http://influxdb-influxdb2.default.svc.cluster.local"
+    org: influxdata
+    token: 1234admin1234
+    device_spread: 1
 namespace: default

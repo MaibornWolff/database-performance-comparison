@@ -1,0 +1,21 @@
+nodeSelector:
+  workload: db
+
+resources:
+  limits:
+    cpu: 8
+    memory: 10Gi
+  requests:
+    cpu: 7
+    memory: 5Gi
+
+adminUser:
+  organization: "influxdata"
+  bucket: "default"
+  password: "adminadmin"
+  token: "1234admin1234"
+
+persistence:
+  enabled: true
+  storageClass: "local-path"
+  size: 50Gi

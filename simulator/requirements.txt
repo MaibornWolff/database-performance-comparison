@@ -3,3 +3,4 @@ dataclasses-json==0.5.2
 psycopg2-binary==2.8.6
 python-arango==7.1.0
 cassandra-driver==3.25.0
+influxdb-client==1.21.0
