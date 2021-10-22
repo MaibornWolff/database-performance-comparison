@@ -2,7 +2,9 @@
 
 MaibornWolff does a lot of IoT projects. One important part of IoT projects is storage and analysis of device data/events. To get some reliable numbers to help us choose well suited databases for specific use cases, we have started to compare some horizontally scalable databases in regards to how well they handle typical IoT workloads and tasks. We are doing this test for us but maybe it's of interest to other people as well. This repository contains the results and the tooling for this comparison.
 
-Currently we only have one use case: Rapid and concurrent inserts to simulate data ingestion of device events (to keep it simple we simulate temperature events). Other use cases like different queries are planned but not yet implemented. The initial idea was to see how the scalable SQL databases YugabyteDB and CockroachDB perform in those use cases but since we were already at it we threw in ArangoDB in the mix and might add more databases like TimescaleDB later.
+Currently we have two types of tests: Rapid and concurrent inserts to simulate data ingestion of device events (to keep it simple we simulate temperature events) as well as some queries that are typical in IoT projects. More query tests are planned but not yet implemented. For the inserts we are doing batch inserts as we assume that we ingest them from Kafka and not directly from a MQTT broker.
+
+The initial idea was to see how the scalable SQL databases YugabyteDB and CockroachDB perform in those use cases as we wanted to see to which we could use such SQL databases in IoT projects but since we were already at it we threw in ArangoDB in the mix and then added Cassandra and InfluxDB. We might add more databases like Elasticsearch/Opensearch or TimescaleDB later. Keep in mind that that we are comparing apples and oranges here (non-timeseries DBs with timeseries DBs) so you have to interpret what the results mean for you yourself :-)
 
 **This is a work-in-progress and is neither intended nor designed as a complete or standardized benchmark like TPC.**
 
