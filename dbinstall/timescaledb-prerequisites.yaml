@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: timescaledb-credentials
+type: Opaque
+data:
+  PATRONI_SUPERUSER_PASSWORD: cG9zdGdyZXM= # postgres
+  PATRONI_REPLICATION_PASSWORD: cG9zdGdyZXM= # postgres
+  PATRONI_admin_PASSWORD: cG9zdGdyZXM= # postgres
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ca-certificate
+spec:
+  secretName: ca-cert
+  duration: 9000h # ~1year
+  renewBefore: 360h # 15d
+  commonName: Database Performance Test CA
+  isCA: true
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+  issuerRef:
+    name: selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: ca-issuer
+spec:
+  ca:
+    secretName: ca-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: timescaledb-server-cert
+spec:
+  secretName: timescaledb-server-cert
+  duration: 9000h # ~1year
+  renewBefore: 360h # 15d
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    encoding: PKCS1
+  dnsNames:
+    - localhost
+    - timescaledb.default.svc.cluster.local
+    - timescaledb
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  commonName: timescaledb Server Cert
+  issuerRef:
+    name: ca-issuer

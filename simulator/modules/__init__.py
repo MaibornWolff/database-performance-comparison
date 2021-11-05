@@ -14,5 +14,8 @@ def select_module():
     elif mod == "influxdb":
         from . import influxdb
         return influxdb
+    elif mod == "timescaledb":
+        from . import timescaledb
+        return timescaledb
     else:
         raise Exception(f"Unknown module: {mod}")

@@ -45,6 +45,7 @@ The table below shows the best results for the databases for a 3 node cluster (P
 | Cassandra sync inserts                      | 389000     | batch, size 1000, max_sync_calls 1   | -                |
 | Cassandra async inserts                     | 410000     | batch, size 1000, max_sync_calls 120 | -                |
 | InfluxDB                                    | 460000     | batch, size 1000                     | -                |
+| TimescaleDB                                 | 600000     | copy, size 1000                      | -                |
 
 You can find additional results from older runs in [old-results.md](old-results.md) but be aware that comparing them with the current ones is not always possible due to different conditions during the runs.
 
@@ -59,6 +60,8 @@ ArangoDB achieves much of its speed by doing asynchronous writes as a normal ins
 For Cassandra we implemented two modes. One where after each insert the client waits for confirmation from the coordinator that the write was processed (called sync inserts in the table) and one where the clients sends several requests asynchronously. The limit of how many requests can be in-flight can be configured using the `max_sync_calls` parameter.
 Although the results of our benchmarks show a drastic improvement, batching in most cases is not a recommended way to improve performance when using Cassandra. The current results are based on a singular device_id (and thus partition key) per worker. This results in all batched messages being processed as one write operation. With multiple devices per batch statement load on the coordinator node would increase and lead to performance and ultimately stability issues. (See [datastax docs on batching](https://docs.datastax.com/en/cql-oss/3.3/cql/cql_using/useBatch.html)).
 
+For TimescaleDB the insert performance depends a lot on the number and size of chunks that are written to. In a fill-level test with 50 million inserts per step where in each step the timestamps started again (so the same chunks were written to as in the last step) performance degraded rapidly. But in the more realistic case of ever increasing timestamps (so new chunks being added) performance stayed relatively constant.
+
 ### Query performance
 
 | Database / Query | count-events | temperature-min-max | temperature-stats | temperature-stats-per-device | newest-per-device |
@@ -66,6 +69,7 @@ Although the results of our benchmarks show a drastic improvement, batching in m
 | PostgreSQL       |           39 |                0.01 |                66 |                          119 |                92 |
 | CockroachDB      |          123 |                 153 |               153 |                          153 |               150 |
 | InfluxDB         |           10 |                  48 |                70 |                           71 |               0.1 |
+| TimescaleDB      |           30 |                0.17 |                34 |                           42 |                38 |
 
 This is a work-in-progress, the other databases have not yet been tested and numbers for the databases listed are a first shot.
 
@@ -86,6 +90,8 @@ To see how the queries are formulated take a look at the `_queries` field in the
 Both PostgeSQL and YugabyteDB take advantage of a provided index on temperature and are able to efficiently calculate the minimum and maximum temperature. CockroachDB seems to not have that optimization and needs a table scan to calculate the result.
 
 When doing the query test against InfluxDB the service received an OOM kill with the insert configuration. To successfully complete the queries the service memory had to be increased to 100Gi.
+
+For TimescaleDB query performance is also very dependent on the number and size of chunks. Too many or too few can negatively impact performance.
 
 For all databases there seems to be a rough linear correlation between query times and database size. So when running the tests with only 50 million rows the query times were about 10 times as fast.
 
@@ -273,6 +279,19 @@ helm install influxdb influxdata/influxdb2 -f dbinstall/influxdb-values.yaml
 ```
 
 The InfluxDB test module ignores the primary key and multiple table options.
+
+### TimescaleDB
+
+TimescaleDB is another representitive of timeseries databases, but this one is implemented on top of PostgreSQL.
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo add timescale https://charts.timescale.com/
+# TimescaleDB requires SSL certificates, so use cert-manager to generate some
+helm install cert-manager jetstack/cert-manager --set installCRDs=true --wait
+kubectl apply -f dbinstall/timescaledb-prerequisites.yaml
+helm install timescaledb timescale/timescaledb-single -f dbinstall/timescaledb-values.yaml
+```
 
 ## Remarks on the databases
 

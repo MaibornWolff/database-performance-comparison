@@ -1,0 +1,24 @@
+replicaCount: 1
+
+secretNames:
+  credentials: timescaledb-credentials
+  certificate: timescaledb-server-cert
+
+# nodeSelector:
+#   workload: db
+
+resources:
+  limits:
+    cpu: 8
+    memory: 10Gi
+  requests:
+    cpu: 8
+    memory: 10Gi
+
+patroni:
+  bootstrap:
+    dcs:
+      postgresql:
+        parameters:
+          # Default value of 64 is too low for some queries
+          max_locks_per_transaction: 1024
