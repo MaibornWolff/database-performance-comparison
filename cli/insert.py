@@ -13,7 +13,7 @@ from .run import one_run
 @click.option('-c', '--config', default="config.yaml", help="Name of the config file to use")
 @click.option('-w', '--workers', default="1,4,8,12,16", help="Sets of worker counts to use, separate by comma without space, default='1,4,8,12,16'")
 @click.option('-r', '--runs', default=3, help='Number of runs per worker count, default=3')
-@click.option("--primary-key", default="db", type=click.Choice(['sql', 'db', 'client', 'uuid'], case_sensitive=False))
+@click.option("--primary-key", default="db", type=click.Choice(['sql', 'db', 'client', 'uuid', 'none'], case_sensitive=False))
 @click.option("--tables", default="single", type=click.Choice(['single', 'multiple'], case_sensitive=False))
 @click.option("--num-inserts", default=10000, help="Number of inserts per worker, default=10000")
 @click.option("--prefill", default=0, help="Insert this number of events into the table before starting the test run, default=0")
@@ -21,7 +21,7 @@ from .run import one_run
 @click.option("--timeout", default=0, help="Timeout in seconds to wait for one run to complete. Increase this if you use higher number of inserts, or set to 0 to disable timeout. default=0")
 @click.option("--batch", default=0, help="Number of events to insert in one batch, default 0 disables batch mode")
 @click.option('--clean/--no-clean', default=True, help="Clean up the database before each run, enabled by default")
-@click.option('--steps', default=0, help="TODO")
+@click.option('--steps', default=0, help="Do x insert runs without cleaning the database inbetween")
 def insert(target, config, workers, runs, primary_key, tables, num_inserts, prefill, extra_option, timeout, batch, clean, steps):
     worker_counts = list(map(lambda el: int(el), workers.split(",")))
     config = _read_config(config)

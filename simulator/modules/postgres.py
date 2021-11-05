@@ -40,13 +40,20 @@ def init():
         pk_column = 'uuid not null default gen_random_uuid()'
     elif config["primary_key"] == "db":
         pk_column = "serial"
-    else:
+    elif config["primary_key"] == "client":
         pk_column = "varchar" 
+    else:
+        pk_column = None
+
+    if pk_column:
+        pk_column = f"id {pk_column},"
+    else:
+        pk_column = ""
 
     for table_name in table_names:
         cur.execute(
         f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (id {pk_column} ,
+        CREATE TABLE IF NOT EXISTS {table_name} ({pk_column}
             timestamp bigint,
             device_id varchar,
             sequence_number bigint,
@@ -222,13 +229,21 @@ def queries():
             cur.execute(index)
         db.commit()
 
+    if "queries" in config:
+        included = config["queries"].split(",")
+        for key in list(_queries.keys()):
+            if key not in included:
+                del _queries[key]
+
     query_times = dict([(name, []) for name in _queries.keys()])
     for i in range(int(config["runs"])):
         for name, query in _queries.items():
+            print(f"Executing query {name}", flush=True)
             start = time.time()
             cur.execute(query)
             list(cur.fetchall()) # Force client to actually fetch results
             duration = time.time() - start
+            print("Finished query", flush=True)
             query_times[name].append(duration)
 
     return query_times

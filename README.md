@@ -64,11 +64,12 @@ Although the results of our benchmarks show a drastic improvement, batching in m
 | Database / Query | count-events | temperature-min-max | temperature-stats | temperature-stats-per-device | newest-per-device |
 |------------------|--------------|---------------------|-------------------|------------------------------|-------------------|
 | PostgreSQL       |           39 |                0.01 |                66 |                          119 |                92 |
-| YugabyteDB YSQL  |           37 |                0.02 |               300 |                          628 |               907 |
 | CockroachDB      |          123 |                 153 |               153 |                          153 |               150 |
 | InfluxDB         |           10 |                  48 |                70 |                           71 |               0.1 |
 
 This is a work-in-progress, the other databases have not yet been tested and numbers for the databases listed are a first shot.
+
+Note: An earlier version had results for YugabyteDB with SQL interface but due to an error on our side the results were run with the wrong dataset so were not comparable. Running the queries against the full dataset required increasing several timeout parameters and yielded results more than a magnitude longer than other results and as such are not shown here.
 
 All queries were run several times against a database with 500 million rows. The table gives the average query duration in seconds. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution.
 
