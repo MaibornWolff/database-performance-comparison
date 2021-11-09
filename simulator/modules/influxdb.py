@@ -16,10 +16,6 @@ def _db():
     return client
 
 
-def prefill_events(events):
-    _insert_events(events, True, 1000)
-
-
 def init():
     client = _db()
     buckets_api = client.buckets_api()

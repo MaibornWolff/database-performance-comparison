@@ -46,6 +46,7 @@ The table below shows the best results for the databases for a 3 node cluster (P
 | Cassandra async inserts                     | 410000     | batch, size 1000, max_sync_calls 120 | -                |
 | InfluxDB                                    | 460000     | batch, size 1000                     | -                |
 | TimescaleDB                                 | 600000     | copy, size 1000                      | -                |
+| Elasticsearch                               | 170000     | batch, size 10000                    | db               |
 
 You can find additional results from older runs in [old-results.md](old-results.md) but be aware that comparing them with the current ones is not always possible due to different conditions during the runs.
 
@@ -70,6 +71,7 @@ For TimescaleDB the insert performance depends a lot on the number and size of c
 | CockroachDB      |          123 |                 153 |               153 |                          153 |               150 |
 | InfluxDB         |           10 |                  48 |                70 |                           71 |               0.1 |
 | TimescaleDB      |           30 |                0.17 |                34 |                           42 |                38 |
+| Elasticsearch    |         0.04 |                0.03 |               5.3 |                           11 |                13 |
 
 This is a work-in-progress, the other databases have not yet been tested and numbers for the databases listed are a first shot.
 
@@ -92,6 +94,8 @@ Both PostgeSQL and YugabyteDB take advantage of a provided index on temperature 
 When doing the query test against InfluxDB the service received an OOM kill with the insert configuration. To successfully complete the queries the service memory had to be increased to 100Gi.
 
 For TimescaleDB query performance is also very dependent on the number and size of chunks. Too many or too few can negatively impact performance.
+
+Elasticsearch seems to cache query results, as such running the queries several times will yield millisecond response times for all queries. The times noted in the table above are against a freshly started elasticsearch cluster.
 
 For all databases there seems to be a rough linear correlation between query times and database size. So when running the tests with only 50 million rows the query times were about 10 times as fast.
 
@@ -291,6 +295,17 @@ helm repo add timescale https://charts.timescale.com/
 helm install cert-manager jetstack/cert-manager --set installCRDs=true --wait
 kubectl apply -f dbinstall/timescaledb-prerequisites.yaml
 helm install timescaledb timescale/timescaledb-single -f dbinstall/timescaledb-values.yaml
+```
+
+### Elasticsearch
+
+Elasticsearch is very-well used for log and analytics data. From an abstract perspective it is a combination of document store and search engine.
+
+```bash
+helm repo add elastic https://helm.elastic.co
+helm install eck-operator elastic/eck-operator
+kubectl apply -f dbinstall/elastic-deployment.yaml
+
 ```
 
 ## Remarks on the databases

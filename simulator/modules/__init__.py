@@ -17,5 +17,8 @@ def select_module():
     elif mod == "timescaledb":
         from . import timescaledb
         return timescaledb
+    elif mod == "elasticsearch":
+        from . import elasticsearch
+        return elasticsearch
     else:
         raise Exception(f"Unknown module: {mod}")

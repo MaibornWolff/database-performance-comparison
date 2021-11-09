@@ -49,4 +49,7 @@ targets:
   timescaledb:
     module: timescaledb
     connection_string: "host=timescaledb.default.svc.cluster.local port=5432 dbname=postgres user=postgres password=postgres"
+  elasticsearch:
+    module: elasticsearch
+    endpoint: https://elastic-es-http.default.svc.cluster.local:9200
 namespace: default
