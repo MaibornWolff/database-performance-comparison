@@ -33,7 +33,7 @@ For ArangoDB batch mode is implemented using the document batch API (`/_api/docu
 
 ### Insert performance
 
-The table below shows the best results for the databases for a 3 node cluster (PostgreSQL and InfluxDB being the exception having only a single instance) and a resource limit of 8 cores and 10 GB memory per node. All tests were run with the newest available version of the databases at the time of testing.
+The table below shows the best results for the databases for a 3 node cluster and a resource limit of 8 cores and 10 GB memory per node. The exceptions are PostgreSQL, InfluxDB and TimescaleDB which were launched as only a single instance. Influx provides a clustered variant only with their Enterprise product and for TimescaleDB there is no official and automated way to create a cluster with a distributed hypertable. All tests were run with the newest available version of the databases at the time of testing and using the opensource or free versions.
 
 | Database                                    | Inserts/s  | Insert mode                          | Primary-key mode |
 |---------------------------------------------|------------|--------------------------------------|------------------|
