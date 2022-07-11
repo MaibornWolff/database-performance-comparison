@@ -209,7 +209,7 @@ def _single_insert_mode(events, use_multiple_tables, batch_size, batch_mode):
 
 
 _indices = [
-    "CREATE INDEX IF NOT EXISTS events_device_ts ON events (device_id, timestamp ASC)",
+    "CREATE INDEX IF NOT EXISTS events_device_ts ON events (device_id ASC, timestamp ASC, temperature ASC)",
     "CREATE INDEX IF NOT EXISTS events_temp ON events (temperature ASC)",
 ]
 
