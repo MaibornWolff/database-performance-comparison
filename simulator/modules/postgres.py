@@ -209,7 +209,7 @@ def _single_insert_mode(events, use_multiple_tables, batch_size, batch_mode):
 
 
 _indices = [
-    "CREATE INDEX IF NOT EXISTS events_device_ts ON events (device_id, timestamp ASC)",
+    "CREATE INDEX IF NOT EXISTS events_device_ts ON events (device_id ASC, timestamp ASC, temperature ASC)",
     "CREATE INDEX IF NOT EXISTS events_temp ON events (temperature ASC)",
 ]
 
@@ -218,7 +218,7 @@ _queries = {
     "temperature-min-max": "SELECT max(temperature), min(temperature) FROM events",
     "temperature-stats": "SELECT max(temperature), avg(temperature), min(temperature) FROM events",
     "temperature-stats-per-device": "SELECT device_id, max(temperature), avg(temperature), min(temperature) FROM events GROUP BY device_id",
-    "newest-per-device": "SELECT e.device_id, e.temperature FROM events e JOIN (SELECT device_id, max(timestamp) as ts FROM events GROUP BY device_id) newest ON e.device_id=newest.device_id AND e.timestamp = newest.ts",
+    "newest-per-device": "SELECT device_id, temperature from (SELECT device_id, temperature, timestamp=max(timestamp) over (partition by device_id) newest FROM events) e where newest",
 }
 
 def queries():
