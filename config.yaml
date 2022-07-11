@@ -7,7 +7,11 @@ targets:
     password: root
   yugabyte_sql:
     module: postgres
-    connection_string: "host=yb-tservers.default port=5433 dbname=postgres user=yugabyte"
+    # options for YugabyteDB relevant (and faster) for an IoT ingest workload:
+    #  yb_enable_expression_pushdown=on may help for queries and is off by default only for rolling upgrades
+    #  yb_enable_upsert_mode=on does not read before write and on duplicate key, updates it rather than raise an error.
+    #  yb_disable_transactional_writes=on is similar to autocommit each rows, and uses a fast-path insert
+    connection_string: "host=yb-tservers.default port=5433 dbname=postgres user=yugabyte options='-c yb_enable_expression_pushdown=on -c yb_enable_upsert_mode=on -c yb_disable_transactional_writes=on'"
     # Yugabyte needs this extension for the gen_random_uuid function
     install_extensions: pgcrypto
   yugabyte_cql:

@@ -40,6 +40,7 @@ partition:
 gflags:
   tserver:
     ysql_sequence_cache_minval: 10000
+    ysql_enable_packed_row: true
 
 # nodeSelector:
 #   workload: db
