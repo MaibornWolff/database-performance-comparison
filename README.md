@@ -35,12 +35,12 @@ For ArangoDB batch mode is implemented using the document batch API (`/_api/docu
 
 The table below shows the best results for the databases for a 3 node cluster and a resource limit of 8 cores and 10 GB memory per node. The exceptions are PostgreSQL, InfluxDB and TimescaleDB which were launched as only a single instance. Influx provides a clustered variant only with their Enterprise product and for TimescaleDB there is no official and automated way to create a cluster with a distributed hypertable. All tests were run with the newest available version of the databases at the time of testing and using the opensource or free versions.
 
-| Database                                    | Inserts/s  | Insert mode                          | Primary-key mode |
+| Database (Version tested)                   | Inserts/s  | Insert mode                          | Primary-key mode |
 |---------------------------------------------|------------|--------------------------------------|------------------|
 | PostgreSQL                                  | 428000     | copy, size 1000                      | sql              |
-| CockroachDB                                 |  91000     | values lists, size 1000              | db               |
-| YugabyteDB YSQL                             |  37600     | copy, size 1000                      | sql              |
-| YugabyteDB YCQL                             | 250000     | batch, size 1000                     | -                |
+| CockroachDB (22.1.3)                        |  91000     | values lists, size 1000              | db               |
+| YugabyteDB YSQL (2.15.0)                    | 295000     | copy, size 1000                      | sql              |
+| YugabyteDB YCQL (2.15.0)                    | 288000     | batch, size 1000                     | -                |
 | ArrangoDB                                   | 137000     | batch, size 1000                     | db               |
 | Cassandra sync inserts                      | 389000     | batch, size 1000, max_sync_calls 1   | -                |
 | Cassandra async inserts                     | 410000     | batch, size 1000, max_sync_calls 120 | -                |
@@ -54,7 +54,7 @@ PostgreSQL can achieve very impressive speeds. Using single row inserts grouped 
 
 Earlier results for CockroachDB were way lower due to problems with `TransactionAbortedError(ABORT_REASON_NEW_LEASE_PREVENTS_TXN)` and potentially also optimizations in newer versions. The current test code implements a retry mechanism to compensate. Due to an incompatibility between CockroachDB and psycopg2 the copy mode could not be used. CockroachDB recommends using randomly-generated UUIDs in place of classical SERIAL primary keys, interestingly using the default SERIAL primary key shows better performance than using an UUID key (only about 57000 inserts/s). There seems to be no big difference between using a db-generated primary key and a client-generated one.
 
-For Yugabyte using copy mode instead of values lists about doubles the insert speed. Using YCQL instead of YSQL leverages enormous speed gains. But it comes at the cost of YCQL being less powerfull than YSQL in terms of queries. This needs to be balanced for each usecase individually to decide if all targeted queries can be done using YCQL or if YSQL really is needed.
+For Yugabyte using copy mode instead of values lists about doubles the insert speed. With the upgrade to version 2.15 speed for the YSQL interface increased by nearly an order of magnitude and became about equal to the speed of the YCQL interface.
 
 ArangoDB achieves much of its speed by doing asynchronous writes as a normal insert will return before the document has been fsynced to disk. Enforcing that via `waitForSync` will massively slow down performance from 4500 insert/s to about 1500 for a 3 node cluster. For a single node instance it is even more pronounced with 7000 vs 1000 inserts/s. As long as ArangoDB is run in cluster mode enforcing sync should not be needed as replication ensures no data is lost if a single node goes down. So for our multi-node test we did not enforce sync.
 
@@ -218,7 +218,7 @@ For the test we installed cockroachdb using:
 
 ```bash
 helm repo add cockroachdb https://charts.cockroachdb.com/
-helm install cockroachdb cockroachdb/cockroachdb -f dbinstall/cockroachdb-values.yaml
+helm install cockroachdb cockroachdb/cockroachdb -f dbinstall/cockroachdb-values.yaml --version 8.1.2
 ```
 
 The values file as it is commited in git installs a 3 node cluster. To install a single node cluster change `statefulset.replicas` option and uncomment the `conf.single-node` option.
@@ -231,7 +231,7 @@ For the test we installed yugabyteDB using:
 
 ```bash
 helm repo add yugabytedb https://charts.yugabyte.com
-helm install yugabyte yugabytedb/yugabyte -f dbinstall/yugabyte-values.yaml
+helm install yugabyte yugabytedb/yugabyte -f dbinstall/yugabyte-values.yaml --version 2.15.0
 ```
 
 The values file installs a 3 node cluster. To install a single node cluster change the `replicas` options. If you want more than 3 nodes you should set the `replicas.master` value to 3 and the `replicas.tserver` value to the node count you desire.

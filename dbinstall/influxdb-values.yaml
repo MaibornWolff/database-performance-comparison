@@ -1,5 +1,5 @@
-nodeSelector:
-  workload: db
+# nodeSelector:
+#   workload: db
 
 resources:
   limits:

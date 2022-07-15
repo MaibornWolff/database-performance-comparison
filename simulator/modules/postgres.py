@@ -225,8 +225,15 @@ def queries():
     db = _db()
     cur = db.cursor()
     if config.get("create_indices", "false").lower() == "true":
+        print("Creating indices", flush=True)
         for index in _indices:
-            cur.execute(index)
+            print(f"Creating index: {index}", flush=True)
+            try:
+                cur.execute(index)
+            except:
+                # Sometimes creating an index on Yugabyte fails with " Query error: schema version mismatch for table X: expected 1, got 0", so try again
+                cur = db.cursor()
+                cur.execute(index)
         db.commit()
 
     if "queries" in config:
@@ -243,7 +250,7 @@ def queries():
             cur.execute(query)
             list(cur.fetchall()) # Force client to actually fetch results
             duration = time.time() - start
-            print("Finished query", flush=True)
+            print(f"Finished query. Duration: {duration}", flush=True)
             query_times[name].append(duration)
 
     return query_times
