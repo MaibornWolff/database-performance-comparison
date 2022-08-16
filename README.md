@@ -72,12 +72,15 @@ For TimescaleDB the insert performance depends a lot on the number and size of c
 | InfluxDB         |           10 |                  48 |                70 |                           71 |               0.1 |
 | TimescaleDB      |           30 |                0.17 |                34 |                           42 |                38 |
 | Elasticsearch    |         0.04 |                0.03 |               5.3 |                           11 |                13 |
+| Yugabyte (YSQL)  |          160 |                0.03 |               220 |                         1700 |           failure |
 
-This is a work-in-progress, the other databases have not yet been tested and numbers for the databases listed are a first shot.
+The table gives the average query duration in seconds
 
-Note: An earlier version had results for YugabyteDB with SQL interface but due to an error on our side the results were run with the wrong dataset so were not comparable. Running the queries against the full dataset required increasing several timeout parameters and yielded results more than a magnitude longer than other results and as such are not shown here.
+This is a work-in-progress, not all databases have been tested and some queries are still being optimized.
 
-All queries were run several times against a database with 500 million rows. The table gives the average query duration in seconds. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution.
+Note: The `newest-per-device` query for YugabyteDB fails (`psycopg2.errors.ConfigurationLimitExceeded: temporary file size exceeds temp_file_limit (1048576kB)`) or gets aborted after about 30mins runtime. The good performance for the `temperature-stats` query is only achieved when `avg(temperature)` is replaced with `sum(temperature)/count(temperature)::numeric avg` as Yugabyte currently does not push down `avg` to the nodes for partial aggregation.
+
+All queries were run several times against a database with 500 million rows. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution.
 
 Explanations for the queries:
 
