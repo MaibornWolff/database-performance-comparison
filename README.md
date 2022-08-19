@@ -78,7 +78,7 @@ The table gives the average query duration in seconds
 
 This is a work-in-progress, not all databases have been tested and some queries are still being optimized.
 
-Note: The `newest-per-device` query for YugabyteDB fails (`psycopg2.errors.ConfigurationLimitExceeded: temporary file size exceeds temp_file_limit (1048576kB)`) or gets aborted after about 30mins runtime. The good performance for the `temperature-stats` query is only achieved when `avg(temperature)` is replaced with `sum(temperature)/count(temperature)::numeric avg` as Yugabyte currently does not push down `avg` to the nodes for partial aggregation.
+Note: The `newest-per-device` query for YugabyteDB fails (`psycopg2.errors.ConfigurationLimitExceeded: temporary file size exceeds temp_file_limit (1048576kB)`) or gets aborted after about 30mins runtime. If the query is changed as described in [issue#7](https://github.com/MaibornWolff/database-performance-comparison/issues/7) to use a [Loose indexscan](https://wiki.postgresql.org/wiki/Loose_indexscan) it becomes very fast (`0.08s`). But as the other database systems have no problem with the original query this is not added to the comparison table. The good performance for the `temperature-stats` query is only achieved when `avg(temperature)` is replaced with `sum(temperature)/count(temperature)::numeric avg` as Yugabyte currently does not push down `avg` to the nodes for partial aggregation.
 
 All queries were run several times against a database with 500 million rows. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution.
 
@@ -234,7 +234,7 @@ For the test we installed yugabyteDB using:
 
 ```bash
 helm repo add yugabytedb https://charts.yugabyte.com
-helm install yugabyte yugabytedb/yugabyte -f dbinstall/yugabyte-values.yaml --version 2.15.0
+helm install yugabyte yugabytedb/yugabyte -f dbinstall/yugabyte-values.yaml --version 2.15.1
 ```
 
 The values file installs a 3 node cluster. To install a single node cluster change the `replicas` options. If you want more than 3 nodes you should set the `replicas.master` value to 3 and the `replicas.tserver` value to the node count you desire.
