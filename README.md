@@ -34,6 +34,7 @@ For ArangoDB batch mode is implemented using the document batch API (`/_api/docu
 ### Insert performance
 
 The table below shows the best results for the databases for a 3 node cluster and a resource limit of 8 cores and 10 GB memory per node. The exceptions are PostgreSQL, InfluxDB and TimescaleDB which were launched as only a single instance. Influx provides a clustered variant only with their Enterprise product and for TimescaleDB there is no official and automated way to create a cluster with a distributed hypertable. All tests were run with the newest available version of the databases at the time of testing and using the opensource or free versions.
+Inserts were done with 16 parallel workers, and each test was run 3 times with the result being the average of these runs. For each run the inserts per second was calculated as the number of inserts divided by the sumed up duration of the workers.
 
 | Database (Version tested)                   | Inserts/s  | Insert mode                          | Primary-key mode |
 |---------------------------------------------|------------|--------------------------------------|------------------|
@@ -80,7 +81,7 @@ This is a work-in-progress, not all databases have been tested and some queries 
 
 Note: The `newest-per-device` query for YugabyteDB fails (`psycopg2.errors.ConfigurationLimitExceeded: temporary file size exceeds temp_file_limit (1048576kB)`) or gets aborted after about 30mins runtime. If the query is changed as described in [issue#7](https://github.com/MaibornWolff/database-performance-comparison/issues/7) to use a [Loose indexscan](https://wiki.postgresql.org/wiki/Loose_indexscan) it becomes very fast (`0.08s`). But as the other database systems have no problem with the original query this is not added to the comparison table. The good performance for the `temperature-stats` query is only achieved when `avg(temperature)` is replaced with `sum(temperature)/count(temperature)::numeric avg` as Yugabyte currently does not push down `avg` to the nodes for partial aggregation.
 
-All queries were run several times against a database with 500 million rows. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution.
+All queries were run several times against a database with 500 million rows preinserted. PostgreSQL and compatible databases had indices on the temperature and on the device_id and temperature columns provided. None of the databases were specifically tuned to optimize query execution. The queries were run 5 times and the given duration was the average over all runs (with the exception of Elasticsarch, see below for explanation). Note that the queries were run against otherwise idle databases, meaning we did not simulate a mixed load with inserts and queries at the same time.
 
 Explanations for the queries:
 
