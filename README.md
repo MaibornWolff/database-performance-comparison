@@ -312,6 +312,10 @@ kubectl apply -f dbinstall/elastic-deployment.yaml
 
 ```
 
+### Azure Data Explorer
+
+Besides having an emulator for ADX, capable of running locally, it is not recommended to use this emulator for any kind of benchmark tests, since the performance profile is very different. Furthermore, it is even prohibited by license terms.
+
 ## Remarks on the databases
 
 This is a collection of problems / observations collected over the course of the tests.
