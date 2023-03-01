@@ -1,11 +1,11 @@
 ---
 namespace: default
-target_module: postgres
-run_config: null
+target_module: azure_data_explorer
+run_config: ewoidGFzayI6ICJpbnNlcnQiLAoidXNlX211bHRpcGxlX3RhYmxlcyI6ICJmYWxzZSIsCiJjbGVhbl9kYXRhYmFzZSI6ICJ0cnVlIgp9 #ewoidGFzayI6ICJpbnNlcnQiLAoidXNlX211bHRpcGxlX3RhYmxlcyI6ICJmYWxzZSIKfQ== #eyJ0YXNrIjogImluc2VydCJ9
 workers: 1
 
 image:
-  name: maibornwolff/database-comparison
+  name: davidboettcher/database-comparison
   tag: latest
 
 nodeSelector: {}

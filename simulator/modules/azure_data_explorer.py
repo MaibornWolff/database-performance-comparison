@@ -7,7 +7,7 @@ from azure.kusto.ingest import QueuedIngestClient, IngestionProperties, FileDesc
 
 import pandas as pd
 
-# from .config import config
+from .config import config
 
 KUSTO_URI = "https://kvc7rq22b9ye5d4a4fgyas.northeurope.kusto.windows.net"
 KUSTO_INGEST_URI = "https://ingest-kvc7rq22b9ye5d4a4fgyas.northeurope.kusto.windows.net"
@@ -15,6 +15,7 @@ KUSTO_DATABASE = "ConnTest"
 
 DESTINATION_TABLE = "PopulationDataNew"
 DESTINATION_TABLE_COLUMN_MAPPING = "PopulationDataNew_CSV_Mapping"
+
 
 
 def test():
@@ -29,16 +30,18 @@ def test():
     kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
 
     ingestion_client = QueuedIngestClient(kcsb_ingest)
-    ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=DESTINATION_TABLE, data_format=DataFormat.CSV, ignore_first_record=True)
-    # file_descriptor = FileDescriptor("modules/population.csv", 48)
-    # ingestion_client.ingest_from_file(file_descriptor, ingestion_props)
+    ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=DESTINATION_TABLE, data_format=DataFormat.CSV,
+                                          ignore_first_record=True)
     mapping = {'State': ['Texas', 'New York', 'Arizona'], 'Population': [300, 400, 500]}
     dataframe = pd.DataFrame(data=mapping)
     ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
     print('Done queuing up ingestion with Azure Data Explorer')
 
-def _conn():
-    return KustoConnectionStringBuilder.with_interactive_login(KUSTO_INGEST_URI)
+
+def _ingestion_client():
+    kcsb_ingest = KustoConnectionStringBuilder.with_interactive_login(KUSTO_INGEST_URI)
+    return QueuedIngestClient(kcsb_ingest)
+
 
 def init():
     kcsb_data = KustoConnectionStringBuilder.with_interactive_login(KUSTO_URI)
@@ -65,13 +68,46 @@ def init():
 def prefill_events(events):
     _insert_events(events, True, 1_000)
 
+
 def insert_events(events):
     batch_mode = config.get("batch_mode", False)
     batch_size = config.get("batch_size", 1_000)
     _insert_events(events, batch_mode, batch_size)
 
 
-def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
+def _batch_insert(events, batch_size, table_names):
+    count = 0
+    timestamps = []
+    device_ids = []
+    sequence_numbers = []
+    temperatures = []
+    for idx, event in enumerate(events):
+        table = table_names[idx % len(table_names)]
+        timestamps.append(event.timestamp)
+        device_ids.append(event.device_id)
+        sequence_numbers.append(event.sequence_number)
+        temperatures.append(event.temperature)
+        count += 1
+        if count >= batch_size:
+            _ingest(table, timestamps, device_ids, sequence_numbers, temperatures)
+    if count > 0:
+        _ingest(table, timestamps, device_ids, sequence_numbers, temperatures)
+
+def _ingest(table, timestamps, device_ids, sequence_numbers, temperatures):
+    ingestion_client = _ingestion_client()
+    ingestion_data = {'timestamp': timestamps, 'device_id': device_ids, 'sequence_number': sequence_numbers,
+                      'temperature': temperatures}
+    dataframe = pd.DataFrame(data=ingestion_data)
+    ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV,
+                                          ignore_first_record=True)
+    ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
+
+
+def _stream_insert(events, table_names):
+    pass
+
+
+def _insert_events(events, batch_mode, batch_size):
     print("Connecting to database", flush=True)
     use_multiple_tables = config["use_multiple_tables"]
     if use_multiple_tables:
@@ -80,6 +116,10 @@ def _insert_events(events, batch_mode, batch_size, use_values_lists=False):
         table_names = ["events"]
 
     print("Inserting events", flush=True)
+    if batch_mode:
+        _batch_insert(events, batch_size, table_names)
+    else:
+        _stream_insert(events, table_names)
 
 
 def queries():
