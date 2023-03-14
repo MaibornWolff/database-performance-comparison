@@ -60,5 +60,5 @@ targets:
     module: azure_data_explorer
     kusto_uri: https://adxcompare.westeurope.kusto.windows.net
     kusto_ingest_uri: https://ingest-adxcompare.westeurope.kusto.windows.net
-    kusto_db: ConnTest
+    kusto_db: SampleDB
 namespace: default

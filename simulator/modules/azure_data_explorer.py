@@ -10,7 +10,6 @@ from azure.kusto.ingest import QueuedIngestClient, IngestionProperties
 
 import pandas as pd
 import os
-
 from .config import config
 
 AAD_APP_ID = os.getenv("adx_aad_app_id")
@@ -25,34 +24,33 @@ KUSTO_URI = config["kusto_uri"]
 KUSTO_INGEST_URI = config["kusto_ingest_uri"]
 KUSTO_DATABASE = config["kusto_db"]
 
+print(KUSTO_URI)
+print(KUSTO_INGEST_URI)
+print(KUSTO_DATABASE)
 
-# DESTINATION_TABLE = "PopulationDataNew"
-# DESTINATION_TABLE_COLUMN_MAPPING = "PopulationDataNew_CSV_Mapping"
+def test():
+    #     #interactive
+    #     # kcsb_ingest = KustoConnectionStringBuilder.with_interactive_login(KUSTO_INGEST_URI)
+    #     # kcsb_data = KustoConnectionStringBuilder.with_interactive_login(KUSTO_URI)
+    #     #secure
+    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication("https://ingest-adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication("https://adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
 
+    kusto_client = KustoClient(kcsb_data)
+    create_table_command = f".create table PopulationTable (State: string, Population: int)"
+    kusto_client.execute_mgmt("SampleDB", create_table_command)
 
-# def test():
-#     #interactive
-#     # kcsb_ingest = KustoConnectionStringBuilder.with_interactive_login(KUSTO_INGEST_URI)
-#     # kcsb_data = KustoConnectionStringBuilder.with_interactive_login(KUSTO_URI)
-#     #secure
-#     kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
-#     kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
-#
-#     kusto_client = KustoClient(kcsb_data)
-#     create_table_command = f".create table {DESTINATION_TABLE} (State: string, Population: int)"
-#     kusto_client.execute_mgmt("ConnTest", create_table_command)
-#
-#     create_mapping_command = """.create table PopulationDataNew ingestion csv mapping 'PopulationDataNew_CSV_Mapping' '[{"Name":"State","datatype":"string","Ordinal":0}, {"Name":"Population","datatype":"int","Ordinal":1}]'"""
-#     kusto_client.execute_mgmt("ConnTest", create_mapping_command)
-#
-#     ingestion_client = QueuedIngestClient(kcsb_ingest)
-#     ingestion_props = IngestionProperties(database="ConnTest", table=DESTINATION_TABLE, data_format=DataFormat.CSV,
-#                                           ignore_first_record=True)
-#     mapping = {'State': ['Texas', 'New York', 'Arizona'], 'Population': [300, 400, 500]}
-#     dataframe = pd.DataFrame(data=mapping)
-#     ingestion_result = ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
-#     print('Done queuing up ingestion with Azure Data Explorer')
-#     print(f"Ingestion_result: {ingestion_result}")
+    create_mapping_command = """.create table PopulationTable ingestion csv mapping 'PopulationDataNew_CSV_Mapping' '[{"Name":"State","datatype":"string","Ordinal":0}, {"Name":"Population","datatype":"int","Ordinal":1}]'"""
+    kusto_client.execute_mgmt("SampleDB", create_mapping_command)
+
+    ingestion_client = QueuedIngestClient(kcsb_ingest)
+    ingestion_props = IngestionProperties(database="SampleDB", table="PopulationTable", data_format=DataFormat.CSV,
+                                          ignore_first_record=True)
+    mapping = {'State': ['Texas', 'New York', 'Arizona'], 'Population': [300, 400, 500]}
+    dataframe = pd.DataFrame(data=mapping)
+    ingestion_result = ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
+    print('Done queuing up ingestion with Azure Data Explorer')
+    print(f"Ingestion_result: {ingestion_result}")
 # import time
 # time.sleep(50)
 # sample_query = "PopulationDataNew | summarize max(Population), min(Population), avg(Population) by State"
@@ -75,42 +73,54 @@ KUSTO_DATABASE = config["kusto_db"]
 # kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
 
 
+
+
+#
+#
+# DESTINATION_TABLE = "PopulationDataNew"
+# DESTINATION_TABLE_COLUMN_MAPPING = "PopulationDataNew_CSV_Mapping"
+
+
+
 def _ingestion_client():
-    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID,
-                                                                                       APP_KEY, AUTHORITY_ID)
+    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
     return QueuedIngestClient(kcsb_ingest)
 
 
 def _kusto_client():
-    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY,
-                                                                                     AUTHORITY_ID)
+    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
     return KustoClient(kcsb_data)
 
 
 def init():
-    kusto_client = _kusto_client()
     if config["use_multiple_tables"]:
         table_names = ["events0", "events1", "events2", "events3"]
     else:
         table_names = ["events"]
+    with _kusto_client() as kusto_client:
+        response = kusto_client.execute(KUSTO_DATABASE, f""".show tables | where DatabaseName == "{KUSTO_DATABASE}" """)
+        existing_tables = [row[0] for row in response.primary_results[0]]
+        print(f"Following tables already exist: {existing_tables}")
+        if config["clean_database"]:
+            for table_name in existing_tables:
+                try:
+                    print(f"Delete table {table_name}")
+                    delete_table_command = f".drop table {table_name}"
+                    kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
+                except KustoApiError as error:
+                    print(f"Could not delete table, due to:\n {error}")
+        table_names = [table_name for table_name in table_names if table_name not in existing_tables]
+        for table_name in table_names:
+            print(f"Create table {table_name}")
+            create_table_command = f".create table {table_name} (timestamp: long, device_id: string, sequence_number: long, temperature: real)"
+            kusto_client.execute_mgmt(KUSTO_DATABASE, create_table_command)
 
-    if config["clean_database"]:
-        for table_name in ["events0", "events1", "events2", "events3", "events"]:
-            try:
-                delete_table_command = f".drop table {table_name}"
-                kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
-            except KustoApiError:
-                print(f"Could not delete table. Table '{table_name}' was probably not found")
-    for table_name in table_names:
-        create_table_command = f".create table {table_name} (timestamp: long, device_id: string, sequence_number: long, temperature: real)"
-        kusto_client.execute_mgmt(KUSTO_DATABASE, create_table_command)
+            # print(f"Enable streaming for {table_name}")
+            # enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
+            # kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
 
-        print(f"Enable streaming for {table_name}")
-        enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
-        kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
-
-        create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
-        kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
+            create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
+            kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
 
 
 def prefill_events(events):
@@ -154,27 +164,28 @@ def _stream_insert(events, table_names):
     number_of_inserts = int(config["num_inserts"])
     inserts_per_table = number_of_inserts // number_of_tables
     for table in table_names:
-        buffered_io = io.BytesIO()
-        for event in itertools.islice(events, inserts_per_table):
-            buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
-        # (buffered_io.write(json.dumps(event.__dict__).encode('utf-8')) for event in itertools.islice(events, inserts_per_table))
-        print(f"Ingest {inserts_per_table} into {table}")
-        print(f"Bytes: {buffered_io.getbuffer().nbytes}")
-        ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
-                                              ignore_first_record=False)
-        result = _ingestion_client().ingest_from_stream(buffered_io, ingestion_props)
-        print(result)
+        with _ingestion_client() as ingestion_client:
+            buffered_io = io.BytesIO()
+            for event in itertools.islice(events, inserts_per_table):
+                buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
+            # (buffered_io.write(json.dumps(event.__dict__).encode('utf-8')) for event in itertools.islice(events, inserts_per_table))
+            print(f"Ingest {inserts_per_table} into {table}")
+            print(f"Bytes: {buffered_io.getbuffer().nbytes}")
+            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
+                                                  ignore_first_record=False)
+            result = ingestion_client.ingest_from_stream(buffered_io, ingestion_props)
+            print(result)
 
 
 def _ingest(table, timestamps, device_ids, sequence_numbers, temperatures):
-    ingestion_client = _ingestion_client()
-    ingestion_data = {'timestamp': timestamps, 'device_id': device_ids, 'sequence_number': sequence_numbers,
-                      'temperature': temperatures}
-    dataframe = pd.DataFrame(data=ingestion_data)
-    ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV,
-                                          ignore_first_record=True)
-    result = ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
-    print(result)
+    with _ingestion_client() as ingestion_client:
+        ingestion_data = {'timestamp': timestamps, 'device_id': device_ids, 'sequence_number': sequence_numbers,
+                          'temperature': temperatures}
+        dataframe = pd.DataFrame(data=ingestion_data)
+        ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV,
+                                              ignore_first_record=True)
+        result = ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
+        print(result)
 
 
 def _insert_events(events, batch_mode, batch_size):
@@ -211,12 +222,13 @@ def queries():
     query_times = dict([(name, []) for name in _queries.keys()])
     for _ in range(0, int(config["runs"])):
         for name, query in _queries.items():
-            print(f"Executing query {name}", flush=True)
-            start = time.time()
-            result = _kusto_client().execute(KUSTO_DATABASE, query)
-            print(result)
-            duration = time.time() - start
-            print(f"Finished query. Duration: {duration}", flush=True)
-            query_times[name].append(duration)
+            with _kusto_client() as kusto_client:
+                print(f"Executing query {name}", flush=True)
+                start = time.time()
+                result = kusto_client.execute(KUSTO_DATABASE, query)
+                print(result)
+                duration = time.time() - start
+                print(f"Finished query. Duration: {duration}", flush=True)
+                query_times[name].append(duration)
 
     return query_times

@@ -1,5 +1,6 @@
 import os
 
+print("v1")
 instance_type = os.environ.get("INSTANCE_TYPE")
 
 if instance_type == "worker":
