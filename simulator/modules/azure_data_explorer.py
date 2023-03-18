@@ -1,12 +1,13 @@
 import io
 import itertools
 import json
+import pickle
 import time
 
 from azure.kusto.data import KustoClient, KustoConnectionStringBuilder
 from azure.kusto.data.exceptions import KustoApiError
 from azure.kusto.data import DataFormat
-from azure.kusto.ingest import QueuedIngestClient, IngestionProperties
+from azure.kusto.ingest import QueuedIngestClient, IngestionProperties, StreamDescriptor
 
 import pandas as pd
 import os
@@ -109,15 +110,17 @@ def init():
                     kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
                 except KustoApiError as error:
                     print(f"Could not delete table, due to:\n {error}")
-        table_names = [table_name for table_name in table_names if table_name not in existing_tables]
+        else:
+            table_names = [table_name for table_name in table_names if table_name not in existing_tables]
         for table_name in table_names:
             print(f"Create table {table_name}")
             create_table_command = f".create table {table_name} (timestamp: long, device_id: string, sequence_number: long, temperature: real)"
             kusto_client.execute_mgmt(KUSTO_DATABASE, create_table_command)
 
-            # print(f"Enable streaming for {table_name}")
-            # enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
-            # kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
+            if not config.get("batch_mode", True):
+                print(f"Enable streaming for {table_name}")
+                enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
+                kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
 
             create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
             kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
@@ -165,16 +168,24 @@ def _stream_insert(events, table_names):
     inserts_per_table = number_of_inserts // number_of_tables
     for table in table_names:
         with _ingestion_client() as ingestion_client:
-            buffered_io = io.BytesIO()
-            for event in itertools.islice(events, inserts_per_table):
-                buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
-            # (buffered_io.write(json.dumps(event.__dict__).encode('utf-8')) for event in itertools.islice(events, inserts_per_table))
+            events_partition = list(itertools.islice(events, inserts_per_table))
+            byte_sequence = pickle.dumps(events_partition)
+            bytes_stream = io.BytesIO(byte_sequence)
+            stream_descriptor = StreamDescriptor(bytes_stream)
             print(f"Ingest {inserts_per_table} into {table}")
-            print(f"Bytes: {buffered_io.getbuffer().nbytes}")
-            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
-                                                  ignore_first_record=False)
-            result = ingestion_client.ingest_from_stream(buffered_io, ingestion_props)
+            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV)
+            result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
             print(result)
+            # buffered_io = io.BytesIO()
+            # for event in itertools.islice(events, inserts_per_table):
+            #     buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
+            # # (buffered_io.write(json.dumps(event.__dict__).encode('utf-8')) for event in itertools.islice(events, inserts_per_table))
+            # print(f"Ingest {inserts_per_table} into {table}")
+            # print(f"Bytes: {buffered_io.getbuffer().nbytes}")
+            # ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
+            #                                       ignore_first_record=False)
+            # result = ingestion_client.ingest_from_stream(buffered_io, ingestion_props)
+            # print(result)
 
 
 def _ingest(table, timestamps, device_ids, sequence_numbers, temperatures):
