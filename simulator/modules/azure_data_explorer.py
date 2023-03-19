@@ -121,6 +121,7 @@ def init():
                 print(f"Enable streaming for {table_name}")
                 enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
                 kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
+                # Manuel check: .show table <table-name> policy streamingingestion
 
             create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
             kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
@@ -169,13 +170,13 @@ def _stream_insert(events, table_names):
     for table in table_names:
         with _ingestion_client() as ingestion_client:
             events_partition = list(itertools.islice(events, inserts_per_table))
-            byte_sequence = pickle.dumps(events_partition)
-            bytes_stream = io.BytesIO(byte_sequence)
-            stream_descriptor = StreamDescriptor(bytes_stream)
             print(f"Ingest {inserts_per_table} into {table}")
-            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV)
-            result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
-            print(result)
+            for event in events_partition:
+                byte_sequence = pickle.dumps(event)
+                bytes_stream = io.BytesIO(byte_sequence)
+                stream_descriptor = StreamDescriptor(bytes_stream)
+                ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV)
+                ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
             # buffered_io = io.BytesIO()
             # for event in itertools.islice(events, inserts_per_table):
             #     buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
