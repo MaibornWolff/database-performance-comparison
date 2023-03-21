@@ -27,13 +27,16 @@ print(KUSTO_URI)
 print(KUSTO_INGEST_URI)
 print(KUSTO_DATABASE)
 
+
 def test():
     #     #interactive
     #     # kcsb_ingest = KustoConnectionStringBuilder.with_interactive_login(KUSTO_INGEST_URI)
     #     # kcsb_data = KustoConnectionStringBuilder.with_interactive_login(KUSTO_URI)
     #     #secure
-    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication("https://ingest-adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
-    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication("https://adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(
+        "https://ingest-adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(
+        "https://adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
 
     kusto_client = KustoClient(kcsb_data)
     create_table_command = f".create table PopulationTable (State: string, Population: int)"
@@ -50,6 +53,8 @@ def test():
     ingestion_result = ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
     print('Done queuing up ingestion with Azure Data Explorer')
     print(f"Ingestion_result: {ingestion_result}")
+
+
 # import time
 # time.sleep(50)
 # sample_query = "PopulationDataNew | summarize max(Population), min(Population), avg(Population) by State"
@@ -72,22 +77,21 @@ def test():
 # kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
 
 
-
-
 #
 #
 # DESTINATION_TABLE = "PopulationDataNew"
 # DESTINATION_TABLE_COLUMN_MAPPING = "PopulationDataNew_CSV_Mapping"
 
 
-
 def _ingestion_client():
-    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID,
+                                                                                       APP_KEY, AUTHORITY_ID)
     return QueuedIngestClient(kcsb_ingest)
 
 
 def _kusto_client():
-    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY,
+                                                                                     AUTHORITY_ID)
     return KustoClient(kcsb_data)
 
 
@@ -170,12 +174,22 @@ def _stream_insert(events, table_names):
         for table in table_names:
             print(f"Ingest {inserts_per_table} into {table}", flush=True)
             events_partition = list(itertools.islice(events, inserts_per_table))
-            event = events_partition[0]
-            byte_seq = event.to_json()
-            bytes_array = byte_seq.encode("utf-8")
+            json_string = ""
+            for event in events_partition:
+                json_string = json_string + event.to_json() + "\n"
+            print(json_string)
+            bytes_array = json_string.encode("utf-8")
+
             byte_stream = io.BytesIO(bytes_array)
+            # for event in events_partition:
+            #     json_string = event.to_json() + "\n"
+            #     print(json_string)
+            #     bytes_array = json_string.encode("utf-8")
+            #     byte_stream.write(bytes_array)
+            byte_stream.flush()
             stream_descriptor = StreamDescriptor(byte_stream)
-            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.JSON)
+            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
+                                                  data_format=DataFormat.SINGLEJSON)
             result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
             print(result)
 
