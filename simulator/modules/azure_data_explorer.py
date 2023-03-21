@@ -1,16 +1,14 @@
 import io
 import itertools
-import json
-import pickle
+import os
 import time
 
+import pandas as pd
+from azure.kusto.data import DataFormat
 from azure.kusto.data import KustoClient, KustoConnectionStringBuilder
 from azure.kusto.data.exceptions import KustoApiError
-from azure.kusto.data import DataFormat
 from azure.kusto.ingest import QueuedIngestClient, IngestionProperties, StreamDescriptor
 
-import pandas as pd
-import os
 from .config import config
 
 AAD_APP_ID = os.getenv("adx_aad_app_id")
@@ -167,16 +165,29 @@ def _stream_insert(events, table_names):
     number_of_tables = len(table_names)
     number_of_inserts = int(config["num_inserts"])
     inserts_per_table = number_of_inserts // number_of_tables
-    for table in table_names:
-        with _ingestion_client() as ingestion_client:
+    print("Stream ingestion", flush=True)
+    with _ingestion_client() as ingestion_client:
+        for table in table_names:
+            print(f"Ingest {inserts_per_table} into {table}", flush=True)
             events_partition = list(itertools.islice(events, inserts_per_table))
-            print(f"Ingest {inserts_per_table} into {table}")
-            for event in events_partition:
-                byte_sequence = pickle.dumps(event)
-                bytes_stream = io.BytesIO(byte_sequence)
-                stream_descriptor = StreamDescriptor(bytes_stream)
-                ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV)
-                ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
+            event = events_partition[0]
+            byte_seq = event.to_json()
+            bytes_array = byte_seq.encode("utf-8")
+            byte_stream = io.BytesIO(bytes_array)
+            stream_descriptor = StreamDescriptor(byte_stream)
+            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.JSON)
+            result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
+            print(result)
+
+            # for dix, event in enumerate(events_partition):
+            #     print(f"Event {dix}", flush=True)
+            #     bytes_sequence = pickle.dumps(event)
+            #     bytes_stream = io.BytesIO(bytes_sequence)
+            #     stream_descriptor = StreamDescriptor(bytes_stream)
+            #     print(StreamDescriptor.get_instance(stream_descriptor).stream)
+            #     ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV)
+            #     ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
+
             # buffered_io = io.BytesIO()
             # for event in itertools.islice(events, inserts_per_table):
             #     buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
