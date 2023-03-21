@@ -15,72 +15,17 @@ AAD_APP_ID = os.getenv("adx_aad_app_id")
 APP_KEY = os.getenv("adx_app_key")
 AUTHORITY_ID = os.getenv("adx_authority_id")
 
-print(AAD_APP_ID)
-print(APP_KEY)
-print(AUTHORITY_ID)
+print(f"AAD_APP_ID: {AAD_APP_ID}")
+print(f"APP_KEY: {APP_KEY}")
+print(f"AUTHORITY_ID: {AUTHORITY_ID}")
 
 KUSTO_URI = config["kusto_uri"]
 KUSTO_INGEST_URI = config["kusto_ingest_uri"]
 KUSTO_DATABASE = config["kusto_db"]
 
-print(KUSTO_URI)
-print(KUSTO_INGEST_URI)
-print(KUSTO_DATABASE)
-
-
-def test():
-    #     #interactive
-    #     # kcsb_ingest = KustoConnectionStringBuilder.with_interactive_login(KUSTO_INGEST_URI)
-    #     # kcsb_data = KustoConnectionStringBuilder.with_interactive_login(KUSTO_URI)
-    #     #secure
-    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(
-        "https://ingest-adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
-    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(
-        "https://adxcompare.westeurope.kusto.windows.net", AAD_APP_ID, APP_KEY, AUTHORITY_ID)
-
-    kusto_client = KustoClient(kcsb_data)
-    create_table_command = f".create table PopulationTable (State: string, Population: int)"
-    kusto_client.execute_mgmt("SampleDB", create_table_command)
-
-    create_mapping_command = """.create table PopulationTable ingestion csv mapping 'PopulationDataNew_CSV_Mapping' '[{"Name":"State","datatype":"string","Ordinal":0}, {"Name":"Population","datatype":"int","Ordinal":1}]'"""
-    kusto_client.execute_mgmt("SampleDB", create_mapping_command)
-
-    ingestion_client = QueuedIngestClient(kcsb_ingest)
-    ingestion_props = IngestionProperties(database="SampleDB", table="PopulationTable", data_format=DataFormat.CSV,
-                                          ignore_first_record=True)
-    mapping = {'State': ['Texas', 'New York', 'Arizona'], 'Population': [300, 400, 500]}
-    dataframe = pd.DataFrame(data=mapping)
-    ingestion_result = ingestion_client.ingest_from_dataframe(dataframe, ingestion_props)
-    print('Done queuing up ingestion with Azure Data Explorer')
-    print(f"Ingestion_result: {ingestion_result}")
-
-
-# import time
-# time.sleep(50)
-# sample_query = "PopulationDataNew | summarize max(Population), min(Population), avg(Population) by State"
-# sample_response = kusto_client.execute("ConnTest", sample_query)
-# for row in sample_response.primary_results[0]:
-#     # printing specific columns by index
-#     print("value at 0 {}".format(row[0]))
-#     print("\n")
-#     # printing specific columns by name
-#     print("EventType:{}".format(row["State"]))
-#     print("EventType:{}".format(row["max_Population"]))
-#     print("EventType:{}".format(row["min_Population"]))
-#     print("EventType:{}".format(row["avg_Population"]))
-# try:
-#     delete_table_command = f".drop table PopulationDataNew2"
-#     kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
-# except KustoApiError:
-#     print("Could not delete table. Table was probably not found")
-# delete_table_command = f".drop table PopulationDataNew"
-# kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
-
-
-#
-#
-# DESTINATION_TABLE = "PopulationDataNew"
-# DESTINATION_TABLE_COLUMN_MAPPING = "PopulationDataNew_CSV_Mapping"
+print(f"KUSTO_URI: {KUSTO_URI}")
+print(f"KUSTO_INGEST_URI: {KUSTO_INGEST_URI}")
+print(f"KUSTO_DATABASE: {KUSTO_DATABASE}")
 
 
 def _ingestion_client():
@@ -179,39 +124,13 @@ def _stream_insert(events, table_names):
                 json_string = json_string + event.to_json() + "\n"
             print(json_string)
             bytes_array = json_string.encode("utf-8")
-
             byte_stream = io.BytesIO(bytes_array)
-            # for event in events_partition:
-            #     json_string = event.to_json() + "\n"
-            #     print(json_string)
-            #     bytes_array = json_string.encode("utf-8")
-            #     byte_stream.write(bytes_array)
             byte_stream.flush()
             stream_descriptor = StreamDescriptor(byte_stream)
             ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
                                                   data_format=DataFormat.SINGLEJSON)
             result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
             print(result)
-
-            # for dix, event in enumerate(events_partition):
-            #     print(f"Event {dix}", flush=True)
-            #     bytes_sequence = pickle.dumps(event)
-            #     bytes_stream = io.BytesIO(bytes_sequence)
-            #     stream_descriptor = StreamDescriptor(bytes_stream)
-            #     print(StreamDescriptor.get_instance(stream_descriptor).stream)
-            #     ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table, data_format=DataFormat.CSV)
-            #     ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
-
-            # buffered_io = io.BytesIO()
-            # for event in itertools.islice(events, inserts_per_table):
-            #     buffered_io.write(json.dumps(event.__dict__).encode('utf-8'))
-            # # (buffered_io.write(json.dumps(event.__dict__).encode('utf-8')) for event in itertools.islice(events, inserts_per_table))
-            # print(f"Ingest {inserts_per_table} into {table}")
-            # print(f"Bytes: {buffered_io.getbuffer().nbytes}")
-            # ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
-            #                                       ignore_first_record=False)
-            # result = ingestion_client.ingest_from_stream(buffered_io, ingestion_props)
-            # print(result)
 
 
 def _ingest(table, timestamps, device_ids, sequence_numbers, temperatures):
