@@ -46,32 +46,55 @@ def init():
     else:
         table_names = ["events"]
     with _kusto_client() as kusto_client:
-        response = kusto_client.execute(KUSTO_DATABASE, f""".show tables | where DatabaseName == "{KUSTO_DATABASE}" """)
-        existing_tables = [row[0] for row in response.primary_results[0]]
-        print(f"Following tables already exist: {existing_tables}")
+        existing_tables = _get_existing_tables(kusto_client)
         if config["clean_database"]:
-            for table_name in existing_tables:
-                try:
-                    print(f"Delete table {table_name}")
-                    delete_table_command = f".drop table {table_name}"
-                    kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
-                except KustoApiError as error:
-                    print(f"Could not delete table, due to:\n {error}")
+            _clean_database(existing_tables, kusto_client)
         else:
-            table_names = [table_name for table_name in table_names if table_name not in existing_tables]
+            table_names = _get_tables_requiring_creation(existing_tables, table_names)
         for table_name in table_names:
-            print(f"Create table {table_name}")
-            create_table_command = f".create table {table_name} (timestamp: long, device_id: string, sequence_number: long, temperature: real)"
-            kusto_client.execute_mgmt(KUSTO_DATABASE, create_table_command)
+            _create_table(kusto_client, table_name)
+            _handle_stream_ingestion(kusto_client, table_name)
+            _create_ingestion_mapping(kusto_client, table_name)
 
-            if not config.get("batch_mode", True):
-                print(f"Enable streaming for {table_name}")
-                enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
-                kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
-                # Manuel check: .show table <table-name> policy streamingingestion
 
-            create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
-            kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
+def _get_tables_requiring_creation(existing_tables, table_names):
+    return [table_name for table_name in table_names if table_name not in existing_tables]
+
+
+def _clean_database(existing_tables, kusto_client):
+    for table_name in existing_tables:
+        try:
+            print(f"Delete table {table_name}")
+            delete_table_command = f".drop table {table_name}"
+            kusto_client.execute_mgmt(KUSTO_DATABASE, delete_table_command)
+        except KustoApiError as error:
+            print(f"Could not delete table, due to:\n {error}")
+
+
+def _get_existing_tables(kusto_client):
+    response = kusto_client.execute(KUSTO_DATABASE, f""".show tables | where DatabaseName == "{KUSTO_DATABASE}" """)
+    existing_tables = [row[0] for row in response.primary_results[0]]
+    print(f"Following tables already exist: {existing_tables}")
+    return existing_tables
+
+
+def _create_ingestion_mapping(kusto_client, table_name):
+    create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
+    kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
+
+
+def _create_table(kusto_client, table_name):
+    print(f"Create table {table_name}")
+    create_table_command = f".create table {table_name} (timestamp: long, device_id: string, sequence_number: long, temperature: real)"
+    kusto_client.execute_mgmt(KUSTO_DATABASE, create_table_command)
+
+
+def _handle_stream_ingestion(kusto_client, table_name):
+    if not config.get("batch_mode", True):
+        print(f"Enable streaming for {table_name}")
+        enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
+        kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
+        # Manuel check: .show table <table-name> policy streamingingestion
 
 
 def prefill_events(events):
@@ -97,7 +120,7 @@ def _batch_insert(events, batch_size, table_names):
         temperatures.append(event.temperature)
         count += 1
         if count >= batch_size:
-            table = table_names[int(idx / batch_size) % len(table_names)]
+            table = _determine_table_for_ingestion(batch_size, idx, table_names)
             print(f"Insert {count} entries into {table}")
             _ingest(table, timestamps, device_ids, sequence_numbers, temperatures)
             timestamps.clear()
@@ -110,6 +133,10 @@ def _batch_insert(events, batch_size, table_names):
         _ingest(table_names[0], timestamps, device_ids, sequence_numbers, temperatures)
 
 
+def _determine_table_for_ingestion(batch_size, idx, table_names):
+    return table_names[int(idx / batch_size) % len(table_names)]
+
+
 def _stream_insert(events, table_names):
     number_of_tables = len(table_names)
     number_of_inserts = int(config["num_inserts"])
@@ -117,20 +144,33 @@ def _stream_insert(events, table_names):
     print("Stream ingestion", flush=True)
     with _ingestion_client() as ingestion_client:
         for table in table_names:
-            print(f"Ingest {inserts_per_table} into {table}", flush=True)
-            events_partition = list(itertools.islice(events, inserts_per_table))
-            json_string = ""
-            for event in events_partition:
-                json_string = json_string + event.to_json() + "\n"
-            print(json_string)
-            bytes_array = json_string.encode("utf-8")
-            byte_stream = io.BytesIO(bytes_array)
-            byte_stream.flush()
-            stream_descriptor = StreamDescriptor(byte_stream)
-            ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
-                                                  data_format=DataFormat.SINGLEJSON)
-            result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
-            print(result)
+            _ingest_by_stream(events, ingestion_client, inserts_per_table, table)
+
+
+def _ingest_by_stream(events, ingestion_client, inserts_per_table, table):
+    print(f"Ingest {inserts_per_table} into {table}", flush=True)
+    events_partition = list(itertools.islice(events, inserts_per_table))
+    json_string = _to_json(events_partition)
+    stream_descriptor = _create_stream_descriptor(json_string)
+    ingestion_props = IngestionProperties(database=KUSTO_DATABASE, table=table,
+                                          data_format=DataFormat.SINGLEJSON)
+    result = ingestion_client.ingest_from_stream(stream_descriptor, ingestion_props)
+    print(result)
+
+
+def _create_stream_descriptor(json_string):
+    bytes_array = json_string.encode("utf-8")
+    byte_stream = io.BytesIO(bytes_array)
+    byte_stream.flush()
+    stream_descriptor = StreamDescriptor(byte_stream)
+    return stream_descriptor
+
+
+def _to_json(events_partition):
+    json_string = ""
+    for event in events_partition:
+        json_string = json_string + event.to_json() + "\n"
+    return json_string
 
 
 def _ingest(table, timestamps, device_ids, sequence_numbers, temperatures):
