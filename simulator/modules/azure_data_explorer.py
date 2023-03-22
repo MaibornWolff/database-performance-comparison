@@ -28,18 +28,6 @@ print(f"KUSTO_INGEST_URI: {KUSTO_INGEST_URI}")
 print(f"KUSTO_DATABASE: {KUSTO_DATABASE}")
 
 
-def _ingestion_client():
-    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID,
-                                                                                       APP_KEY, AUTHORITY_ID)
-    return QueuedIngestClient(kcsb_ingest)
-
-
-def _kusto_client():
-    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY,
-                                                                                     AUTHORITY_ID)
-    return KustoClient(kcsb_data)
-
-
 def init():
     if config["use_multiple_tables"]:
         table_names = ["events0", "events1", "events2", "events3"]
@@ -55,6 +43,44 @@ def init():
             _create_table(kusto_client, table_name)
             _handle_stream_ingestion(kusto_client, table_name)
             _create_ingestion_mapping(kusto_client, table_name)
+
+
+def prefill_events(events):
+    _insert_events(events, True, 1_000)
+
+
+def insert_events(events):
+    batch_mode = config.get("batch_mode", False)
+    batch_size = config.get("batch_size", 1_000)
+    _insert_events(events, batch_mode, batch_size)
+
+
+_queries = {
+    "count-events": "events | count",
+    "temperature-min-max": "events| summarize max(temperature), min(temperature)",
+    "temperature-stats": "events| summarize max(temperature), avg(temperature), min(temperature)",
+    "temperature-stats-per-device": "events | summarize max(temperature), avg(temperature), min(temperature) by device_id",
+    "newest-per-device": "events | partition by device_id (top 1 by timestamp desc | project device_id, temperature)",
+}
+
+
+def queries():
+    _filter_queries_to_execute()
+    query_times = dict([(name, []) for name in _queries.keys()])
+    for _ in range(0, int(config["runs"])):
+        for name, query in _queries.items():
+            _execute_query(name, query, query_times)
+    return query_times
+
+
+def _ingestion_client():
+    kcsb_ingest = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_INGEST_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    return QueuedIngestClient(kcsb_ingest)
+
+
+def _kusto_client():
+    kcsb_data = KustoConnectionStringBuilder.with_aad_application_key_authentication(KUSTO_URI, AAD_APP_ID, APP_KEY, AUTHORITY_ID)
+    return KustoClient(kcsb_data)
 
 
 def _get_tables_requiring_creation(existing_tables, table_names):
@@ -95,16 +121,6 @@ def _handle_stream_ingestion(kusto_client, table_name):
         enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
         kusto_client.execute_mgmt(KUSTO_DATABASE, enable_streaming_command)
         # Manuel check: .show table <table-name> policy streamingingestion
-
-
-def prefill_events(events):
-    _insert_events(events, True, 1_000)
-
-
-def insert_events(events):
-    batch_mode = config.get("batch_mode", False)
-    batch_size = config.get("batch_size", 1_000)
-    _insert_events(events, batch_mode, batch_size)
 
 
 def _batch_insert(events, batch_size, table_names):
@@ -199,32 +215,21 @@ def _insert_events(events, batch_mode, batch_size):
         _stream_insert(events, table_names)
 
 
-_queries = {
-    "count-events": "events | count",
-    "temperature-min-max": "events| summarize max(temperature), min(temperature)",
-    "temperature-stats": "events| summarize max(temperature), avg(temperature), min(temperature)",
-    "temperature-stats-per-device": "events | summarize max(temperature), avg(temperature), min(temperature) by device_id",
-    "newest-per-device": "events | partition by device_id (top 1 by timestamp desc | project device_id, temperature)",
-}
+def _execute_query(name, query, query_times):
+    with _kusto_client() as kusto_client:
+        print(f"Executing query {name}", flush=True)
+        start = time.time()
+        result = kusto_client.execute(KUSTO_DATABASE, query)
+        print(result)
+        duration = time.time() - start
+        print(f"Finished query. Duration: {duration}", flush=True)
+        query_times[name].append(duration)
 
 
-def queries():
+def _filter_queries_to_execute():
     if "queries" in config:
         included = config["queries"].split(",")
         for key in list(_queries.keys()):
             if key not in included:
                 del _queries[key]
     print(_queries)
-    query_times = dict([(name, []) for name in _queries.keys()])
-    for _ in range(0, int(config["runs"])):
-        for name, query in _queries.items():
-            with _kusto_client() as kusto_client:
-                print(f"Executing query {name}", flush=True)
-                start = time.time()
-                result = kusto_client.execute(KUSTO_DATABASE, query)
-                print(result)
-                duration = time.time() - start
-                print(f"Finished query. Duration: {duration}", flush=True)
-                query_times[name].append(duration)
-
-    return query_times
