@@ -314,7 +314,37 @@ kubectl apply -f dbinstall/elastic-deployment.yaml
 
 ### Azure Data Explorer
 
+Azure Data Explorer (ADX) is a fully managed, high-performance, big data analytics platform. Azure Data Explorer can take all this varied data, and then ingest, process, and store it. You can use Azure Data Explorer for near real-time queries and advanced analytics.
+
+To deploy an ADX-Cluster change the Service Principle (AAD) to your own Service Principle inside dbinstall/azure_data_explorer/main.tf.
+```
+data "azuread_service_principal" "service-principle" {
+  display_name = "mw_iot_ADX-DB-Comparison"
+}
+```
+
+Additionally adjust the following fields depending on your performance needs:
+
+```
+resource "azurerm_kusto_cluster" "adxcompare" {
+  ...
+
+  sku {
+    name     = "Dev(No SLA)_Standard_E2a_v4"
+    capacity = 1
+  }
+```
+
+adjust the terraform-file to your needs and then run:
+```bash
+az login
+terraform apply
+```
+
+
+
 Besides having an emulator for ADX, capable of running locally, it is not recommended to use this emulator for any kind of benchmark tests, since the performance profile is very different. Furthermore, it is even prohibited by license terms.
+
 
 ## Remarks on the databases
 

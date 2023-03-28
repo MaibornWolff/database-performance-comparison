@@ -59,19 +59,6 @@ data "azuread_service_principal" "service-principle" {
   display_name = "mw_iot_ADX-DB-Comparison"
 }
 
-/*
-output "tenant_id" {
-  value = data.azurerm_client_config.current.tenant_id
-}
-
-output "principal_id" {
-  value = data.azuread_service_principal.service-principle.id
-}
-
-output "principal_id2" {
-  value = data.azurerm_client_config.current.client_id
-}
-*/
 resource "azurerm_kusto_database_principal_assignment" "ad-permission" {
   name                = "AD-Permission"
   resource_group_name = azurerm_resource_group.rg-compare.name
