@@ -335,7 +335,7 @@ resource "azurerm_kusto_cluster" "adxcompare" {
   }
 ```
 
-adjust the terraform-file to your needs and then run:
+Finally, run:
 ```bash
 az login
 terraform apply

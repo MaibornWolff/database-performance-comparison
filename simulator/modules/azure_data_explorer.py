@@ -15,17 +15,9 @@ AAD_APP_ID = os.getenv("adx_aad_app_id")
 APP_KEY = os.getenv("adx_app_key")
 AUTHORITY_ID = os.getenv("adx_authority_id")
 
-print(f"AAD_APP_ID: {AAD_APP_ID}")
-print(f"APP_KEY: {APP_KEY}")
-print(f"AUTHORITY_ID: {AUTHORITY_ID}")
-
 KUSTO_URI = config["kusto_uri"]
 KUSTO_INGEST_URI = config["kusto_ingest_uri"]
 KUSTO_DATABASE = config["kusto_db"]
-
-print(f"KUSTO_URI: {KUSTO_URI}")
-print(f"KUSTO_INGEST_URI: {KUSTO_INGEST_URI}")
-print(f"KUSTO_DATABASE: {KUSTO_DATABASE}")
 
 
 def init():
@@ -219,8 +211,7 @@ def _execute_query(name, query, query_times):
     with _kusto_client() as kusto_client:
         print(f"Executing query {name}", flush=True)
         start = time.time()
-        result = kusto_client.execute(KUSTO_DATABASE, query)
-        print(result)
+        kusto_client.execute(KUSTO_DATABASE, query)
         duration = time.time() - start
         print(f"Finished query. Duration: {duration}", flush=True)
         query_times[name].append(duration)

@@ -15,7 +15,7 @@ provider "azurerm" {
 
 
 resource "azurerm_resource_group" "rg-compare" {
-  name     = "db-performance-comparison2"
+  name     = "db-performance-comparison"
   location = "West Europe"
 
   tags = {
@@ -30,6 +30,7 @@ resource "azurerm_kusto_cluster" "adxcompare" {
   resource_group_name         = azurerm_resource_group.rg-compare.name
   streaming_ingestion_enabled = true
 
+  # Change depending on your performance needs
   sku {
     name     = "Dev(No SLA)_Standard_E2a_v4"
     capacity = 1
@@ -54,7 +55,7 @@ resource "azurerm_kusto_database" "sample-db" {
 data "azurerm_client_config" "current" {
 }
 
-
+# Change to your own service principal
 data "azuread_service_principal" "service-principle" {
   display_name = "mw_iot_ADX-DB-Comparison"
 }
