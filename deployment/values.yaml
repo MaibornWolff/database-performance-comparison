@@ -1,7 +1,7 @@
 ---
 namespace: default
 target_module: postgres
-run_config:
+run_config: null
 workers: 1
 
 image:

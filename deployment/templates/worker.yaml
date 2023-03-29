@@ -42,5 +42,6 @@ spec:
             name: adx-secret
       restartPolicy: Never
       terminationGracePeriodSeconds: 2
-      nodeSelector: {{ .Values.nodeSelector | toYaml | indent 8 }}
+      nodeSelector:
+{{ .Values.nodeSelector | toYaml | indent 8 }}
   backoffLimit: 0
