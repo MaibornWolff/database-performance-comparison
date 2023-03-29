@@ -12,9 +12,7 @@ FROM base
 
 COPY --from=builder /install /usr/local
 COPY requirements.txt /
-
 RUN pip install -r requirements.txt
-
 RUN apk --no-cache add libpq libstdc++
 ADD . /simulator
 WORKDIR /simulator
