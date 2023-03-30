@@ -341,6 +341,8 @@ az login
 terraform apply
 ```
 
+To enable streaming set the `batch` parameter of the config to `false`. This will not apply to existing tables. 
+Streaming ingestion on cluster level is enabled by default by terraform cluster config.
 
 
 Besides having an emulator for ADX, capable of running locally, it is not recommended to use this emulator for any kind of benchmark tests, since the performance profile is very different. Furthermore, it is even prohibited by license terms.
