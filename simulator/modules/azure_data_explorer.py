@@ -59,7 +59,7 @@ _queries = {
 def queries():
     _filter_queries_to_execute()
     query_times = dict([(name, []) for name in _queries.keys()])
-    for _ in range(0, int(config["runs"])):
+    for _ in range(int(config["runs"])):
         for name, query in _queries.items():
             _execute_query(name, query, query_times)
     return query_times
