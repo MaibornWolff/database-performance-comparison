@@ -17,7 +17,7 @@ This readme contains three sections:
 ## Benchmark
 
 Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB, ArangoDB, Cassandra and InfluxDB with (aside from PostgreSQL and InfluxDB) 3 nodes and 16 parallel workers that insert data (more concurrent workers might speed up the process but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 8 m5ad.2xlarge (8vCPU, 32GB memory) and 3 i3.8xlarge (32vCPU, 244GB memory) EC2 instances on AWS. The database pods were run on the i3 instances with a resource limit of 8 cores and 10 GB memory per node, the client pods of the benchmark on the m5ad instances. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes.
-For Azure Data Explorer the test setup adapted to use: AKS with Standard_D8_v5 on 3 Nodes.
+For Azure Data Explorer the test setup was adapted to the following: AKS with Standard_D8_v5 on 3 Nodes.
 
 All tests were run on an empty database.
 
