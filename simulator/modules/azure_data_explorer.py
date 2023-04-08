@@ -20,6 +20,7 @@ KUSTO_INGEST_URI = config["kusto_ingest_uri"]
 KUSTO_DATABASE = config["kusto_db"]
 
 TABLE_NAMES = ["events0", "events1", "events2", "events3"] if config["use_multiple_tables"] else ["events"]
+EVENT_TABLE_MAPPING = """'[{"Name":"timestamp","datatype":"long","Ordinal":0}, {"Name":"device_id","datatype":"string","Ordinal":1}, {"Name":"sequence_number","datatype":"long","Ordinal":2}, {"Name":"temperature","datatype":"real","Ordinal":3}]'"""
 
 
 def init():
@@ -95,7 +96,7 @@ def _get_existing_tables(kusto_client):
 
 
 def _create_ingestion_mapping(kusto_client, table_name):
-    create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' '[{{"Name":"timestamp","datatype":"long","Ordinal":0}}, {{"Name":"device_id","datatype":"string","Ordinal":1}}, {{"Name":"sequence_number","datatype":"long","Ordinal":2}}, {{"Name":"temperature","datatype":"real","Ordinal":3}}]'"""
+    create_mapping_command = f""".create table {table_name} ingestion csv mapping '{table_name}_CSV_Mapping' {EVENT_TABLE_MAPPING}"""
     kusto_client.execute_mgmt(KUSTO_DATABASE, create_mapping_command)
 
 
