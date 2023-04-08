@@ -19,21 +19,19 @@ KUSTO_URI = config["kusto_uri"]
 KUSTO_INGEST_URI = config["kusto_ingest_uri"]
 KUSTO_DATABASE = config["kusto_db"]
 
+TABLE_NAMES = ["events0", "events1", "events2", "events3"] if config["use_multiple_tables"] else ["events"]
+
 
 def init():
-    if config["use_multiple_tables"]:
-        table_names = ["events0", "events1", "events2", "events3"]
-    else:
-        table_names = ["events"]
     with _kusto_client() as kusto_client:
         existing_tables = _get_existing_tables(kusto_client)
         if config["clean_database"]:
             _clean_database(existing_tables, kusto_client)
         else:
-            table_names = _get_tables_requiring_creation(existing_tables, table_names)
+            table_names = _get_tables_requiring_creation(existing_tables, TABLE_NAMES)
         for table_name in table_names:
             _create_table(kusto_client, table_name)
-            _handle_stream_ingestion(kusto_client, table_name)
+            _configure_stream_ingestion(kusto_client, table_name)
             _create_ingestion_mapping(kusto_client, table_name)
 
 
@@ -107,7 +105,7 @@ def _create_table(kusto_client, table_name):
     kusto_client.execute_mgmt(KUSTO_DATABASE, create_table_command)
 
 
-def _handle_stream_ingestion(kusto_client, table_name):
+def _configure_stream_ingestion(kusto_client, table_name):
     if not config.get("batch_mode", True):
         print(f"Enable streaming for {table_name}")
         enable_streaming_command = f".alter table {table_name} policy streamingingestion enable"
@@ -193,18 +191,11 @@ def _ingest(table, timestamps, device_ids, sequence_numbers, temperatures):
 
 
 def _insert_events(events, batch_mode, batch_size):
-    print("Connecting to database", flush=True)
-    use_multiple_tables = config["use_multiple_tables"]
-    if use_multiple_tables:
-        table_names = ["events0", "events1", "events2", "events3"]
-    else:
-        table_names = ["events"]
-
     print("Inserting events", flush=True)
     if batch_mode:
-        _batch_insert(events, batch_size, table_names)
+        _batch_insert(events, batch_size, TABLE_NAMES)
     else:
-        _stream_insert(events, table_names)
+        _stream_insert(events, TABLE_NAMES)
 
 
 def _execute_query(name, query, query_times):
