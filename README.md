@@ -360,7 +360,7 @@ terraform apply
 Finally, create the kubernetes secret:
 
 ````bash
-kubectl create secret generic adx-secret  --from-literal=adx_aad_app_id=<your aad app id>  --from-literal=adx_app_key=<your app key>  --from=adx_authority_id=<your authority id> -n default
+kubectl create secret generic adx-secret  --from-literal=adx_aad_app_id=<your aad app id>  --from-literal=adx_app_key=<your app key>  --from-literal=adx_authority_id=<your authority id> -n default
 ````
 To enable streaming set the `batch` parameter of the config to `false`. This will not apply to existing tables. 
 Streaming ingestion on cluster level is enabled by default by terraform cluster config.
