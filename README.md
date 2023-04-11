@@ -51,10 +51,12 @@ Inserts were done with 16 parallel workers, and each test was run 3 times with t
 | InfluxDB                                | 460000    | batch, size 1000                     | -                |
 | TimescaleDB                             | 600000    | copy, size 1000                      | -                |
 | Elasticsearch                           | 170000    | batch, size 10000                    | db               |
-| Azure Data Explorer (Storage optimized) | 36000     | batch, size 1000                     | - |
-| Azure Data Explorer (Storage optimized) | 30000     | stream, size 1000                    | - |
-| Azure Data Explorer (Compute optimized) | 38000     | batch, size 1000                     | - |
-| Azure Data Explorer (Compute optimized) | 53000     | stream, size 1000                    | - |
+| Azure Data Explorer (Storage optimized) | 36000<sup>*</sup>    | batch, size 1000                     | - |
+| Azure Data Explorer (Storage optimized) | 30000<sup>*</sup>    | stream, size 1000                    | - |
+| Azure Data Explorer (Compute optimized) | 38000<sup>*</sup>     | batch, size 1000                     | - |
+| Azure Data Explorer (Compute optimized) | 53000<sup>*</sup>     | stream, size 1000                    | - |
+
+<sup>*Inserts are not written into database immediately, but only queued</sup> 
 
 You can find additional results from older runs in [old-results.md](old-results.md) but be aware that comparing them with the current ones is not always possible due to different conditions during the runs.
 
