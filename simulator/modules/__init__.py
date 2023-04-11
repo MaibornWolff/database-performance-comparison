@@ -20,5 +20,8 @@ def select_module():
     elif mod == "elasticsearch":
         from . import elasticsearch
         return elasticsearch
+    elif mod == "azure_data_explorer":
+        from . import azure_data_explorer
+        return azure_data_explorer
     else:
         raise Exception(f"Unknown module: {mod}")

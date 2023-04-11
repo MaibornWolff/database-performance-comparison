@@ -26,6 +26,10 @@ spec:
           value: "{{ .Values.target_module }}"
         - name: RUN_CONFIG
           value: "{{ .Values.run_config }}"
+        envFrom:
+        - secretRef:
+            name: adx-secret
+
       terminationGracePeriodSeconds: 2
       nodeSelector:
 {{ .Values.nodeSelector | toYaml | indent 8 }}
