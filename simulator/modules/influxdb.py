@@ -8,7 +8,7 @@ from .config import config
 
 BUCKET_NAME = "dbtest"
 CURRENT_YEAR = date.today().year
-NEXT_YEAR = (date.today()+ timedelta(days=366)).year
+NEXT_YEAR = (date.today() + timedelta(days=366)).year
 
 
 def _db():

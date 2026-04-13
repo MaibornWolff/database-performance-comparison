@@ -17,6 +17,7 @@ This readme contains three sections:
 ## Benchmark
 
 Using the test setup from this repository we ran tests against PostgreSQL, CockroachDB, YugabyteDB, ArangoDB, Cassandra and InfluxDB with (aside from PostgreSQL and InfluxDB) 3 nodes and 16 parallel workers that insert data (more concurrent workers might speed up the process but we didn't test that as this test was only to establish a baseline). All tests were done on a k3s cluster consisting of 8 m5ad.2xlarge (8vCPU, 32GB memory) and 3 i3.8xlarge (32vCPU, 244GB memory) EC2 instances on AWS. The database pods were run on the i3 instances with a resource limit of 8 cores and 10 GB memory per node, the client pods of the benchmark on the m5ad instances. In the text below all mentions of nodes refer to database nodes (pods) and not VMs or kubernetes nodes.
+For Azure Data Explorer the test setup was adapted to the following: AKS with Standard_D8_v5 on 3 Nodes.
 
 All tests were run on an empty database.
 
@@ -31,23 +32,31 @@ For generating primary keys for the events we have two modes: Calculating it on 
 For the insert testcase we use single inserts (for PostgreSQL with autocommit) to simulate an ingest where each message needs to be persisted as soon as possible so no batching of messages is possible. Depending on the architecture and implementation buffering and batching of messages is possible. To see what effect this has on the performance we have implemented a batch mode for the test.
 For ArangoDB batch mode is implemented using the document batch API (`/_api/document`), the older generic batch API (`/_api/batch`) will be deprecated and produces worse performance so we did not use it. For PostgreSQL we implemented batch mode by doing a manual commit every x inserts and using COPY instead of INSERT. Another way to implement batch inserts is to use values lists (one insert statement with a list of values tuples) but this is not as fast as COPY. This mode can however be activated by passing `--extra-option use_values_lists=true`.
 
+Azure Data Explorer offers compute and storage optimized sku types, as well as batch and stream ingestion. For storage optimized it was decided to test against Standard_L8s_v2, for compute optimized against Standard_E8a_v4 and in both cases a sku capacity of 2 was used.
+
 ### Insert performance
 
 The table below shows the best results for the databases for a 3 node cluster and a resource limit of 8 cores and 10 GB memory per node. The exceptions are PostgreSQL, InfluxDB and TimescaleDB which were launched as only a single instance. Influx provides a clustered variant only with their Enterprise product and for TimescaleDB there is no official and automated way to create a cluster with a distributed hypertable. All tests were run with the newest available version of the databases at the time of testing and using the opensource or free versions.
 Inserts were done with 16 parallel workers, and each test was run 3 times with the result being the average of these runs. For each run the inserts per second was calculated as the number of inserts divided by the sumed up duration of the workers.
 
-| Database (Version tested)                   | Inserts/s  | Insert mode                          | Primary-key mode |
-|---------------------------------------------|------------|--------------------------------------|------------------|
-| PostgreSQL                                  | 428000     | copy, size 1000                      | sql              |
-| CockroachDB (22.1.3)                        |  91000     | values lists, size 1000              | db               |
-| YugabyteDB YSQL (2.15.0)                    | 295000     | copy, size 1000                      | sql              |
-| YugabyteDB YCQL (2.15.0)                    | 288000     | batch, size 1000                     | -                |
-| ArrangoDB                                   | 137000     | batch, size 1000                     | db               |
-| Cassandra sync inserts                      | 389000     | batch, size 1000, max_sync_calls 1   | -                |
-| Cassandra async inserts                     | 410000     | batch, size 1000, max_sync_calls 120 | -                |
-| InfluxDB                                    | 460000     | batch, size 1000                     | -                |
-| TimescaleDB                                 | 600000     | copy, size 1000                      | -                |
-| Elasticsearch                               | 170000     | batch, size 10000                    | db               |
+| Database (Version tested)               | Inserts/s | Insert mode                          | Primary-key mode |
+|-----------------------------------------|-----------|--------------------------------------|------------------|
+| PostgreSQL                              | 428000    | copy, size 1000                      | sql              |
+| CockroachDB (22.1.3)                    | 91000     | values lists, size 1000              | db               |
+| YugabyteDB YSQL (2.15.0)                | 295000    | copy, size 1000                      | sql              |
+| YugabyteDB YCQL (2.15.0)                | 288000    | batch, size 1000                     | -                |
+| ArrangoDB                               | 137000    | batch, size 1000                     | db               |
+| Cassandra sync inserts                  | 389000    | batch, size 1000, max_sync_calls 1   | -                |
+| Cassandra async inserts                 | 410000    | batch, size 1000, max_sync_calls 120 | -                |
+| InfluxDB                                | 460000    | batch, size 1000                     | -                |
+| TimescaleDB                             | 600000    | copy, size 1000                      | -                |
+| Elasticsearch                           | 170000    | batch, size 10000                    | db               |
+| Azure Data Explorer (Storage optimized) | 36000<sup>*</sup>    | batch, size 1000                     | - |
+| Azure Data Explorer (Storage optimized) | 30000<sup>*</sup>    | stream, size 1000                    | - |
+| Azure Data Explorer (Compute optimized) | 38000<sup>*</sup>     | batch, size 1000                     | - |
+| Azure Data Explorer (Compute optimized) | 53000<sup>*</sup>     | stream, size 1000                    | - |
+
+<sup>*Inserts are not written into database immediately, but only queued</sup> 
 
 You can find additional results from older runs in [old-results.md](old-results.md) but be aware that comparing them with the current ones is not always possible due to different conditions during the runs.
 
@@ -64,16 +73,21 @@ Although the results of our benchmarks show a drastic improvement, batching in m
 
 For TimescaleDB the insert performance depends a lot on the number and size of chunks that are written to. In a fill-level test with 50 million inserts per step where in each step the timestamps started again (so the same chunks were written to as in the last step) performance degraded rapidly. But in the more realistic case of ever increasing timestamps (so new chunks being added) performance stayed relatively constant.
 
+Notable about Azure Data Explorer is the fact, that inserts are not immediately written to the database, instead their queued. The larger the batch/stream the longer it takes until the queue 
+starts to work it off. Once started it can keep the pace. For example a couple of rows take 20 - 30 seconds to appear in the database, 1000 rows 5 - 6 minutes, but 12.5 million rows require also only 5 - 6 minutes.
+
 ### Query performance
 
-| Database / Query | count-events | temperature-min-max | temperature-stats | temperature-stats-per-device | newest-per-device |
-|------------------|--------------|---------------------|-------------------|------------------------------|-------------------|
-| PostgreSQL       |           39 |                0.01 |                66 |                          119 |                92 |
-| CockroachDB      |          123 |                 153 |               153 |                          153 |               150 |
-| InfluxDB         |           10 |                  48 |                70 |                           71 |               0.1 |
-| TimescaleDB      |           30 |                0.17 |                34 |                           42 |                38 |
-| Elasticsearch    |         0.04 |                0.03 |               5.3 |                           11 |                13 |
-| Yugabyte (YSQL)  |          160 |                0.03 |               220 |                         1700 |           failure |
+| Database / Query                        | count-events | temperature-min-max | temperature-stats | temperature-stats-per-device | newest-per-device |
+|-----------------------------------------|--------------|---------------------|-------------------|------------------------------|-------------------|
+| PostgreSQL                              | 39           | 0.01                | 66                | 119                          | 92                |
+| CockroachDB                             | 123          | 153                 | 153               | 153                          | 150               |
+| InfluxDB                                | 10           | 48                  | 70                | 71                           | 0.1               |
+| TimescaleDB                             | 30           | 0.17                | 34                | 42                           | 38                |
+| Elasticsearch                           | 0.04         | 0.03                | 5.3               | 11                           | 13                |
+| Yugabyte (YSQL)                         | 160          | 0.03                | 220               | 1700                         | failure           |
+| Azure Data Explorer (Storage optimized) | 0.33         | 0.76                | 1.0               | 3.2                          | 8.6               |
+| Azure Data Explorer (Compute optimized) | 0.29         | 0.55                | 0.69              | 2.2                          | failure           |
 
 The table gives the average query duration in seconds
 
@@ -100,6 +114,10 @@ When doing the query test against InfluxDB the service received an OOM kill with
 For TimescaleDB query performance is also very dependent on the number and size of chunks. Too many or too few can negatively impact performance.
 
 Elasticsearch seems to cache query results, as such running the queries several times will yield millisecond response times for all queries. The times noted in the table above are against a freshly started elasticsearch cluster.
+
+In case of the newest-per-device query (compute optimized) Azure Data Explorer did not succeed but terminated with "partition operator exceed amount of maximum partitions allowed (64)."
+When a query is run against Azure Data Explorer, the query engine tries to optimize it by breaking it down into smaller, parallelizable tasks that can be executed across multiple partitions. 
+If the query requires more partitions than the maximum allowed limit, it will fail with the error message above.
 
 For all databases there seems to be a rough linear correlation between query times and database size. So when running the tests with only 50 million rows the query times were about 10 times as fast.
 
@@ -136,9 +154,9 @@ To run the test use `python run.py insert`. You can use the following options:
 * `--workers`: Set of worker counts to try, default is `1,4,8,12,16` meaning the test will try with 1 concurrent worker, then with 4, then 8, then 12 and finally 16
 * `--runs`: How often should the test be repeated for each worker count, default is `3`
 * `--primary-key`: Defines how the primary key should be generated, see below for choices. Defaults to `db`
-* `--tables`: To simulate how the databases behave if inserts are done to several tables this option can be changed from `single` to `multiple` to have the test write into four instead of just one table
+* `--tables`: To simulate how the databases behave if inserts are done to several tables. This option can be changed from `single` to `multiple` to have the test write into four instead of just one table
 * `--num-inserts`: The number of inserts each worker should do, by default 10000 to get a quick result. Increase this to see how the databases behave under constant load. Also increase the timout option accordingly
-* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default is `0`. Increase accordingly if you increase the number of inserts or disable by stting to `0`
+* `--timeout`: How long should the script wait for the insert test to complete in seconds. Default is `0`. Increase accordingly if you increase the number of inserts or disable by setting to `0`
 * `--batch`: Switch to batch mode (for postgres this means manual commits, for arangodb using the [batch api](https://docs.python-arango.com/en/main/batch.html)). Specify the number of inserts per transaction/batch
 * `--extra-option`: Extra options to supply to the test scripts, can be used multiple times. Currently only used for ArangoDB (see below)
 * `--clean` / `--no-clean`: By default the simulator will clean and recreate tables to always have the same basis for the runs. Can be disabled
@@ -311,6 +329,47 @@ helm install eck-operator elastic/eck-operator
 kubectl apply -f dbinstall/elastic-deployment.yaml
 
 ```
+
+### Azure Data Explorer
+
+Azure Data Explorer (ADX) is a fully managed, high-performance, big data analytics platform. Azure Data Explorer can take all this varied data, and then ingest, process, and store it. You can use Azure Data Explorer for near real-time queries and advanced analytics.
+
+To deploy an ADX-Cluster change the Service Principle (AAD) to your own Service Principle inside dbinstall/azure_data_explorer/main.tf:
+```
+data "azuread_service_principal" "service-principle" {
+  display_name = "mw_iot_ADX-DB-Comparison"
+}
+```
+
+Additionally adjust the following fields depending on your performance needs:
+
+```
+resource "azurerm_kusto_cluster" "adxcompare" {
+  ...
+
+  sku {
+    name     = "Dev(No SLA)_Standard_E2a_v4"
+    capacity = 1
+  }
+```
+
+To apply the infrastructure, run:
+```bash
+az login
+terraform apply
+```
+
+Finally, create the kubernetes secret:
+
+````bash
+kubectl create secret generic adx-secret  --from-literal=adx_aad_app_id=<your aad app id>  --from-literal=adx_app_key=<your app key>  --from-literal=adx_authority_id=<your authority id> -n default
+````
+To enable streaming set the `batch` parameter of the config to `false`. This will not apply to existing tables. 
+Streaming ingestion on cluster level is enabled by default by terraform cluster config.
+
+
+Besides having an emulator for ADX, capable of running locally, it is not recommended to use this emulator for any kind of benchmark tests, since the performance profile is very different. Furthermore, it is even prohibited by license terms.
+
 
 ## Remarks on the databases
 

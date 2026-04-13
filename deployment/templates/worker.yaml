@@ -37,6 +37,9 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        envFrom:
+        - secretRef:
+            name: adx-secret
       restartPolicy: Never
       terminationGracePeriodSeconds: 2
       nodeSelector:

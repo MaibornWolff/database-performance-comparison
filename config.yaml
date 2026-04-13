@@ -56,4 +56,9 @@ targets:
   elasticsearch:
     module: elasticsearch
     endpoint: https://elastic-es-http.default.svc.cluster.local:9200
+  azure_data_explorer:
+    module: azure_data_explorer
+    kusto_uri: https://adxcompare.westeurope.kusto.windows.net
+    kusto_ingest_uri: https://ingest-adxcompare.westeurope.kusto.windows.net
+    kusto_db: SampleDB
 namespace: default
